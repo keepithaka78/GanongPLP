@@ -662,20 +662,20 @@ def get_predictions(file_id: int, days_ahead: int = 7, db: Session = Depends(get
     # 예측 결과 구성
     for i, age in enumerate(future_ages):
         predictions["predictions"].append({
-            "age_day": age,
-            "predicted_laying_rate": round(laying_rate_predictions[i], 2),
-            "predicted_mortality_rate": round(mortality_rate_predictions[i], 3),
-            "predicted_broken_egg_rate": round(broken_egg_rate_predictions[i], 3)
+            "age_day": int(age),
+            "predicted_laying_rate": float(round(laying_rate_predictions[i], 2)),
+            "predicted_mortality_rate": float(round(mortality_rate_predictions[i], 3)),
+            "predicted_broken_egg_rate": float(round(broken_egg_rate_predictions[i], 3))
         })
 
     # 추세 분석
-    laying_trend = "상승" if len(laying_rates) >= 2 and laying_rates[-1] > laying_rates[0] else \
-                   "하락" if len(laying_rates) >= 2 and laying_rates[-1] < laying_rates[0] else "안정"
+    laying_trend = "상승" if len(laying_rates) >= 2 and float(laying_rates[-1]) > float(laying_rates[0]) else \
+                   "하락" if len(laying_rates) >= 2 and float(laying_rates[-1]) < float(laying_rates[0]) else "안정"
 
     predictions["trend_analysis"] = {
         "laying_rate_trend": laying_trend,
-        "current_laying_rate": round(laying_rates[-1], 2) if len(laying_rates) > 0 else 0,
-        "predicted_change": round(laying_rate_predictions[-1] - laying_rates[-1], 2) if len(laying_rates) > 0 else 0
+        "current_laying_rate": float(round(laying_rates[-1], 2)) if len(laying_rates) > 0 else 0.0,
+        "predicted_change": float(round(laying_rate_predictions[-1] - laying_rates[-1], 2)) if len(laying_rates) > 0 else 0.0
     }
 
     return predictions
