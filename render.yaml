@@ -1,0 +1,14 @@
+services:
+  - type: web
+    name: poultry-dashboard
+    env: python
+    region: singapore
+    plan: free
+    buildCommand: cd backend && pip install -r requirements.txt
+    startCommand: cd backend && uvicorn main:app --host 0.0.0.0 --port $PORT
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: EXCEL_DIR
+        sync: false
+    healthCheckPath: /api/health

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>동별 비교 - 가농바이오 양계 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .nav-pills .nav-link {
+            color: white;
+            margin: 0 0.5rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .age-selector {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .age-display {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+            text-align: center;
+            margin-bottom: 1rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-4">🐔 가농바이오 양계 대시보드</h1>
+            <ul class="nav nav-pills mt-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">대시보드</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/compare.html">동별 비교</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/trends.html">추이 그래프</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search.html">데이터 검색</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/predictions.html">예측 분석</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 일령 선택 -->
+        <div class="age-selector">
+            <h4 class="mb-3">📅 비교할 일령 선택</h4>
+            <div class="age-display" id="ageDisplay">-</div>
+            <input type="range" class="form-range" id="ageSlider" min="100" max="700" value="400" step="1">
+            <div class="d-flex justify-content-between">
+                <small class="text-muted">100일</small>
+                <small class="text-muted">700일</small>
+            </div>
+        </div>
+
+        <!-- 산란율 비교 차트 -->
+        <div class="chart-container">
+            <h4 class="mb-4">📊 산란율 비교</h4>
+            <canvas id="layingRateChart"></canvas>
+        </div>
+
+        <!-- 폐사율 비교 차트 -->
+        <div class="chart-container">
+            <h4 class="mb-4">📉 폐사율 비교</h4>
+            <canvas id="mortalityRateChart"></canvas>
+        </div>
+
+        <!-- 파란율 비교 차트 -->
+        <div class="chart-container">
+            <h4 class="mb-4">🥚 파란율 비교</h4>
+            <canvas id="brokenEggRateChart"></canvas>
+        </div>
+
+        <!-- 수당 사료섭취량 비교 차트 -->
+        <div class="chart-container">
+            <h4 class="mb-4">🌾 수당 사료섭취량 비교</h4>
+            <canvas id="feedIntakeChart"></canvas>
+        </div>
+
+        <!-- 상세 데이터 테이블 -->
+        <div class="chart-container">
+            <h4 class="mb-4">📋 상세 데이터</h4>
+            <div class="table-responsive">
+                <table class="table table-hover" id="detailTable">
+                    <thead>
+                        <tr>
+                            <th>동</th>
+                            <th>차수</th>
+                            <th>산란율</th>
+                            <th>폐사율</th>
+                            <th>파란율</th>
+                            <th>현재 수수</th>
+                            <th>수당 사료</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let charts = {};
+
+        // Chart.js 기본 설정
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+        // 일령 범위 로드
+        async function loadAgeRange() {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/age-range`);
+                const data = await response.json();
+
+                const slider = document.getElementById('ageSlider');
+                slider.min = data.min_age;
+                slider.max = data.max_age;
+                slider.value = Math.floor((data.min_age + data.max_age) / 2);
+
+                updateAgeDisplay(slider.value);
+                await loadComparisonData(slider.value);
+            } catch (error) {
+                console.error('Failed to load age range:', error);
+                // 에러 시 기본값 사용
+                const slider = document.getElementById('ageSlider');
+                slider.min = 132;
+                slider.max = 606;
+                slider.value = 400;
+                updateAgeDisplay(400);
+                await loadComparisonData(400);
+            }
+        }
+
+        // 일령 표시 업데이트
+        function updateAgeDisplay(age) {
+            document.getElementById('ageDisplay').textContent = `${age}일령`;
+        }
+
+        // 비교 데이터 로드
+        async function loadComparisonData(ageDay) {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/compare?age_day=${ageDay}`);
+                const data = await response.json();
+
+                console.log('Loaded data:', data);
+
+                if (data.total_houses === 0) {
+                    // 빈 차트 표시
+                    updateChart('layingRateChart', [], [], '산란율 (%)', '#667eea');
+                    updateChart('mortalityRateChart', [], [], '폐사율 (%)', '#f56565');
+                    updateChart('brokenEggRateChart', [], [], '파란율 (%)', '#ed8936');
+                    updateChart('feedIntakeChart', [], [], '사료섭취량 (kg)', '#48bb78');
+                    updateTable([]);
+                    return;
+                }
+
+                // 차트 데이터 준비
+                const labels = data.data.map(item => `${item.house} ${item.batch}`);
+                const layingRates = data.data.map(item => item.laying_rate || 0);
+                const mortalityRates = data.data.map(item => item.mortality_rate || 0);
+                const brokenEggRates = data.data.map(item => item.broken_egg_rate || 0);
+                const feedPerBirds = data.data.map(item => item.feed_per_bird || 0);
+
+                console.log('Chart data prepared:', { labels, layingRates });
+
+                // 차트 업데이트
+                updateChart('layingRateChart', labels, layingRates, '산란율 (%)', '#667eea');
+                updateChart('mortalityRateChart', labels, mortalityRates, '폐사율 (%)', '#f56565');
+                updateChart('brokenEggRateChart', labels, brokenEggRates, '파란율 (%)', '#ed8936');
+                updateChart('feedIntakeChart', labels, feedPerBirds, '수당 사료섭취량 (g)', '#48bb78');
+
+                // 테이블 업데이트
+                updateTable(data.data);
+
+            } catch (error) {
+                console.error('Failed to load comparison data:', error);
+                alert(`데이터 로드 중 오류가 발생했습니다: ${error.message}`);
+            }
+        }
+
+        // 차트 생성/업데이트
+        function updateChart(chartId, labels, data, label, backgroundColor) {
+            const ctx = document.getElementById(chartId);
+
+            // 기존 차트 제거
+            if (charts[chartId]) {
+                charts[chartId].destroy();
+            }
+
+            // 새 차트 생성
+            charts[chartId] = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: label,
+                        data: data,
+                        backgroundColor: backgroundColor,
+                        borderColor: backgroundColor,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: function(value) {
+                                    return chartId === 'feedIntakeChart' ? value : value + '%';
+                                }
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const suffix = chartId === 'feedIntakeChart' ? 'g' : '%';
+                                    return `${context.parsed.y.toFixed(1)}${suffix}`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 테이블 업데이트
+        function updateTable(data) {
+            const tbody = document.querySelector('#detailTable tbody');
+            tbody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.house}</td>
+                    <td>${item.batch}</td>
+                    <td>${(item.laying_rate || 0).toFixed(1)}%</td>
+                    <td>${(item.mortality_rate || 0).toFixed(2)}%</td>
+                    <td>${(item.broken_egg_rate || 0).toFixed(2)}%</td>
+                    <td>${(item.current_count || 0).toLocaleString()}마리</td>
+                    <td>${(item.feed_per_bird || 0).toFixed(1)}g</td>
+                </tr>
+            `).join('');
+        }
+
+        // 슬라이더 이벤트
+        const slider = document.getElementById('ageSlider');
+        slider.addEventListener('input', (e) => {
+            updateAgeDisplay(e.target.value);
+        });
+
+        slider.addEventListener('change', (e) => {
+            loadComparisonData(parseInt(e.target.value));
+        });
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', () => {
+            loadAgeRange();
+        });
+    </script>
+</body>
+</html>

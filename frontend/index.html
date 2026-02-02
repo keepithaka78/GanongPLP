@@ -1,0 +1,615 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>가농바이오 양계 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .stat-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+        }
+        .stat-value {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            color: #666;
+            font-size: 0.9rem;
+        }
+        .house-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            border-left: 4px solid #667eea;
+        }
+        .badge-custom {
+            background-color: #667eea;
+            color: white;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-size: 0.9rem;
+        }
+        .refresh-btn {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            z-index: 1000;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            transition: all 0.3s;
+        }
+        .refresh-btn:hover:not(:disabled) {
+            transform: scale(1.1);
+        }
+        .refresh-btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+        .refresh-btn .spinner-border {
+            width: 1rem;
+            height: 1rem;
+        }
+        .toast-container {
+            position: fixed;
+            top: 80px;
+            right: 30px;
+            z-index: 1050;
+        }
+        .alert-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1rem;
+            margin-bottom: 0.75rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            border-left: 4px solid;
+        }
+        .alert-card.warning {
+            border-left-color: #ffc107;
+            background-color: #fff8e1;
+        }
+        .alert-card.critical {
+            border-left-color: #dc3545;
+            background-color: #ffe6e6;
+        }
+        .alert-icon {
+            font-size: 1.5rem;
+            margin-right: 0.5rem;
+        }
+        .alert-badge {
+            font-size: 0.75rem;
+            padding: 0.25rem 0.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-4">🐔 가농바이오 양계 대시보드</h1>
+            <p class="lead">실시간 산란계 성적 모니터링</p>
+            <ul class="nav nav-pills mt-3">
+                <li class="nav-item">
+                    <a class="nav-link active" href="/" style="background-color: rgba(255, 255, 255, 0.3); color: white;">대시보드</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/compare.html" style="color: white;">동별 비교</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/trends.html" style="color: white;">추이 그래프</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search.html" style="color: white;">데이터 검색</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/predictions.html" style="color: white;">예측 분석</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 전체 통계 -->
+        <div class="row mb-4">
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="stat-label">전체 계군 수</div>
+                    <div class="stat-value" id="totalHouses">-</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="stat-label">평균 산란율</div>
+                    <div class="stat-value" id="avgLayingRate">-</div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="stat-card">
+                    <div class="stat-label">전체 데이터 수</div>
+                    <div class="stat-value" id="totalRecords">-</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 필터 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">🔍 필터</h5>
+                        <div class="row g-3">
+                            <div class="col-md-3">
+                                <label class="form-label">동</label>
+                                <select id="filterHouse" class="form-select" onchange="applyFilters()">
+                                    <option value="">전체</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label">차수</label>
+                                <select id="filterBatch" class="form-select" onchange="applyFilters()">
+                                    <option value="">전체</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">&nbsp;</label>
+                                <div>
+                                    <button class="btn btn-secondary btn-sm" onclick="resetFilters()">
+                                        필터 초기화
+                                    </button>
+                                    <span class="ms-2 text-muted" id="filterStatus">필터 없음</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 알림 및 경고 -->
+        <div class="row mb-4" id="alertsSection" style="display: none;">
+            <div class="col-12">
+                <h3 class="mb-3">⚠️ 알림 및 경고</h3>
+                <div id="alertsContainer">
+                    <!-- 알림이 여기에 표시됩니다 -->
+                </div>
+            </div>
+        </div>
+
+        <!-- 현재 사육중인 계군 -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <h3 class="mb-3">📊 현재 사육중인 계군 현황</h3>
+                <div id="housesContainer">
+                    <div class="text-center">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- API 상태 -->
+        <div class="row">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">🔧 시스템 상태</h5>
+                        <p class="card-text">
+                            <span class="badge bg-success">API 연결됨</span>
+                            <span class="badge bg-info ms-2">마지막 업데이트: <span id="lastUpdate">-</span></span>
+                        </p>
+                        <a href="http://localhost:8000/docs" target="_blank" class="btn btn-primary btn-sm">
+                            API 문서 보기
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">⏰ 자동 업데이트 스케줄러</h5>
+                        <p class="card-text">
+                            <span id="schedulerStatus" class="badge bg-secondary">확인 중...</span><br>
+                            <small class="text-muted">다음 실행: <span id="nextRun">-</span></small><br>
+                            <small class="text-muted">마지막 자동 업데이트: <span id="lastScheduledUpdate">-</span></small>
+                        </p>
+                        <button onclick="triggerScheduler()" class="btn btn-warning btn-sm">
+                            즉시 실행 (테스트)
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 새로고침 버튼 -->
+    <button id="refreshBtn" class="btn btn-primary btn-lg refresh-btn" onclick="reloadData()">
+        <span id="refreshIcon">🔄</span>
+        <span id="refreshText"> 데이터 새로고침</span>
+    </button>
+
+    <!-- 토스트 알림 -->
+    <div class="toast-container">
+        <div id="refreshToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
+            <div class="toast-header">
+                <strong class="me-auto">알림</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast" aria-label="Close"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                데이터 새로고침 완료
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = 'http://localhost:8000';
+
+        // 헬스체크
+        async function checkHealth() {
+            try {
+                const response = await fetch(`${API_BASE}/api/health`);
+                const data = await response.json();
+
+                document.getElementById('totalRecords').textContent =
+                    data.statistics.layer_records.toLocaleString();
+                document.getElementById('lastUpdate').textContent =
+                    new Date(data.timestamp).toLocaleTimeString('ko-KR');
+
+                return true;
+            } catch (error) {
+                console.error('Health check failed:', error);
+                return false;
+            }
+        }
+
+        // 스케줄러 상태 확인
+        async function checkSchedulerStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/scheduler-status`);
+                const data = await response.json();
+
+                if (data.status === 'success') {
+                    const scheduler = data.scheduler;
+
+                    // 스케줄러 실행 상태
+                    const statusBadge = document.getElementById('schedulerStatus');
+                    if (scheduler.is_running) {
+                        statusBadge.className = 'badge bg-success';
+                        statusBadge.textContent = '실행 중';
+                    } else {
+                        statusBadge.className = 'badge bg-danger';
+                        statusBadge.textContent = '중지됨';
+                    }
+
+                    // 다음 실행 시간
+                    if (scheduler.next_run) {
+                        const nextRun = new Date(scheduler.next_run);
+                        document.getElementById('nextRun').textContent =
+                            nextRun.toLocaleString('ko-KR');
+                    }
+
+                    // 마지막 자동 업데이트
+                    if (scheduler.last_update) {
+                        const lastUpdate = new Date(scheduler.last_update);
+                        document.getElementById('lastScheduledUpdate').textContent =
+                            lastUpdate.toLocaleString('ko-KR');
+                    } else {
+                        document.getElementById('lastScheduledUpdate').textContent = '아직 없음';
+                    }
+                }
+            } catch (error) {
+                console.error('Scheduler status check failed:', error);
+            }
+        }
+
+        // 스케줄러 즉시 실행
+        async function triggerScheduler() {
+            if (!confirm('스케줄러를 즉시 실행하시겠습니까? (변경된 파일을 업데이트합니다)')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/trigger-update`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                // 토스트 알림
+                const toastEl = document.getElementById('refreshToast');
+                const toastBody = document.getElementById('toastMessage');
+
+                if (result.status === 'success' || result.status === 'partial_success') {
+                    toastBody.innerHTML = `
+                        <strong>✅ 스케줄러 실행 완료</strong><br>
+                        ${result.message}
+                    `;
+                } else {
+                    toastBody.innerHTML = `<strong>❌ ${result.message}</strong>`;
+                }
+
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+
+                // 데이터 및 스케줄러 상태 새로고침
+                await checkHealth();
+                await loadAlerts();
+                await loadHouses();
+                await checkSchedulerStatus();
+
+            } catch (error) {
+                console.error('Failed to trigger scheduler:', error);
+                alert('스케줄러 실행 실패: ' + error.message);
+            }
+        }
+
+        // 필터 옵션 로드
+        async function loadFilterOptions() {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/filter-options`);
+                const data = await response.json();
+
+                // 동 옵션
+                const houseSelect = document.getElementById('filterHouse');
+                houseSelect.innerHTML = '<option value="">전체</option>' +
+                    data.houses.map(h => `<option value="${h}">${h}</option>`).join('');
+
+                // 차수 옵션
+                const batchSelect = document.getElementById('filterBatch');
+                batchSelect.innerHTML = '<option value="">전체</option>' +
+                    data.batches.map(b => `<option value="${b}">${b}</option>`).join('');
+
+            } catch (error) {
+                console.error('Failed to load filter options:', error);
+            }
+        }
+
+        // 필터 적용
+        async function applyFilters() {
+            const house = document.getElementById('filterHouse').value;
+            const batch = document.getElementById('filterBatch').value;
+
+            let filters = [];
+            if (house) filters.push(`동: ${house}`);
+            if (batch) filters.push(`차수: ${batch}`);
+
+            const filterStatus = document.getElementById('filterStatus');
+            if (filters.length > 0) {
+                filterStatus.textContent = `필터 적용: ${filters.join(', ')}`;
+                filterStatus.className = 'ms-2 badge bg-primary';
+            } else {
+                filterStatus.textContent = '필터 없음';
+                filterStatus.className = 'ms-2 text-muted';
+            }
+
+            await loadHouses();
+        }
+
+        // 필터 초기화
+        async function resetFilters() {
+            document.getElementById('filterHouse').value = '';
+            document.getElementById('filterBatch').value = '';
+            await applyFilters();
+        }
+
+        // 알림 로드
+        async function loadAlerts() {
+            try {
+                const response = await fetch(`${API_BASE}/api/alerts`);
+                const data = await response.json();
+
+                const alertsSection = document.getElementById('alertsSection');
+                const container = document.getElementById('alertsContainer');
+
+                if (data.total === 0) {
+                    alertsSection.style.display = 'none';
+                    return;
+                }
+
+                alertsSection.style.display = 'block';
+
+                // 알림 카드 렌더링
+                container.innerHTML = data.alerts.map(alert => {
+                    const icon = alert.severity === 'critical' ? '🚨' : '⚠️';
+                    const badgeClass = alert.severity === 'critical' ? 'bg-danger' : 'bg-warning';
+                    const typeLabel = {
+                        'laying_rate': '산란율',
+                        'mortality_rate': '폐사율',
+                        'broken_egg_rate': '파란율'
+                    }[alert.type] || alert.type;
+
+                    return `
+                        <div class="alert-card ${alert.severity}">
+                            <div class="d-flex align-items-start">
+                                <span class="alert-icon">${icon}</span>
+                                <div class="flex-grow-1">
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <div>
+                                            <strong>${alert.house} ${alert.batch}</strong>
+                                            <span class="badge ${badgeClass} alert-badge ms-2">
+                                                ${alert.severity === 'critical' ? '심각' : '경고'}
+                                            </span>
+                                            <span class="badge bg-secondary alert-badge ms-1">${typeLabel}</span>
+                                        </div>
+                                        <small class="text-muted">일령 ${alert.age_day}일</small>
+                                    </div>
+                                    <div class="mb-1">${alert.message}</div>
+                                    <small class="text-muted">
+                                        현재 값: ${alert.value.toFixed(2)}${alert.type.includes('rate') ? '%' : ''}
+                                        | 기준: ${alert.threshold}${alert.type.includes('rate') ? '%' : ''}
+                                        ${alert.date ? ' | ' + new Date(alert.date).toLocaleDateString('ko-KR') : ''}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+
+            } catch (error) {
+                console.error('Failed to load alerts:', error);
+                document.getElementById('alertsSection').style.display = 'none';
+            }
+        }
+
+        // 계군 목록 로드
+        async function loadHouses() {
+            try {
+                const house = document.getElementById('filterHouse').value;
+                const batch = document.getElementById('filterBatch').value;
+
+                let url = `${API_BASE}/api/layer/summary`;
+                const params = [];
+                if (house) params.push(`house=${encodeURIComponent(house)}`);
+                if (batch) params.push(`batch=${encodeURIComponent(batch)}`);
+                if (params.length > 0) url += '?' + params.join('&');
+
+                const response = await fetch(url);
+                const data = await response.json();
+
+                document.getElementById('totalHouses').textContent = data.total_houses;
+
+                // 평균 산란율 계산
+                const avgLayingRate = data.data.reduce((sum, item) =>
+                    sum + (item.laying_rate || 0), 0) / data.total_houses;
+                document.getElementById('avgLayingRate').textContent =
+                    avgLayingRate.toFixed(1) + '%';
+
+                // 계군 카드 렌더링
+                const container = document.getElementById('housesContainer');
+                container.innerHTML = data.data.map(house => `
+                    <div class="house-card">
+                        <div class="row align-items-center">
+                            <div class="col-md-2">
+                                <h5 class="mb-0">${house.house} ${house.batch}</h5>
+                                <small class="text-muted">일령 ${house.age_day}일</small>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-label">산란율</div>
+                                <div class="h4 mb-0 text-primary">${(house.laying_rate || 0).toFixed(1)}%</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-label">폐사율</div>
+                                <div class="h4 mb-0 text-danger">${(house.mortality_rate || 0).toFixed(2)}%</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-label">현재 수수</div>
+                                <div class="h4 mb-0">${(house.current_count || 0).toLocaleString()}마리</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-label">수당 사료</div>
+                                <div class="h4 mb-0 text-success">${(house.feed_per_bird || 0).toFixed(1)}g</div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="stat-label">최근 날짜</div>
+                                <small class="text-muted">${house.record_date ? new Date(house.record_date).toLocaleDateString('ko-KR') : '-'}</small>
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+
+            } catch (error) {
+                console.error('Failed to load houses:', error);
+                document.getElementById('housesContainer').innerHTML = `
+                    <div class="alert alert-danger">
+                        데이터를 불러오는데 실패했습니다.
+                    </div>
+                `;
+            }
+        }
+
+        // 데이터 새로고침
+        async function reloadData() {
+            const btn = document.getElementById('refreshBtn');
+            const icon = document.getElementById('refreshIcon');
+            const text = document.getElementById('refreshText');
+
+            // 버튼 비활성화
+            btn.disabled = true;
+            icon.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            text.textContent = ' 새로고침 중...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/admin/reload-data?force=false`, {
+                    method: 'POST'
+                });
+                const result = await response.json();
+
+                // 토스트 메시지
+                const toastEl = document.getElementById('refreshToast');
+                const toastBody = document.getElementById('toastMessage');
+
+                if (result.status === 'success' || result.status === 'partial_success') {
+                    toastBody.innerHTML = `
+                        <strong>✅ ${result.message}</strong><br>
+                        ${result.updated_files.length > 0 ?
+                            '업데이트된 파일: ' + result.updated_files.join(', ') :
+                            '변경된 파일이 없습니다.'}
+                    `;
+                } else if (result.status === 'no_changes') {
+                    toastBody.innerHTML = `<strong>ℹ️ ${result.message}</strong>`;
+                } else {
+                    toastBody.innerHTML = `<strong>❌ ${result.message}</strong>`;
+                }
+
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+
+                // 데이터 다시 로드
+                await checkHealth();
+                await loadAlerts();
+                await loadHouses();
+
+            } catch (error) {
+                console.error('Failed to reload data:', error);
+                const toastEl = document.getElementById('refreshToast');
+                const toastBody = document.getElementById('toastMessage');
+                toastBody.innerHTML = `<strong>❌ 새로고침 실패</strong><br>${error.message}`;
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            } finally {
+                // 버튼 다시 활성화
+                btn.disabled = false;
+                icon.textContent = '🔄';
+                text.textContent = ' 데이터 새로고침';
+            }
+        }
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', async () => {
+            await checkHealth();
+            await loadFilterOptions();
+            await loadAlerts();
+            await loadHouses();
+            await checkSchedulerStatus();
+
+            // 30초마다 자동 새로고침
+            setInterval(() => {
+                checkHealth();
+                loadAlerts();
+                loadHouses();
+                checkSchedulerStatus();
+            }, 30000);
+        });
+    </script>
+</body>
+</html>

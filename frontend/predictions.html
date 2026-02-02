@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>예측 분석 - 가농바이오 양계 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .nav-pills .nav-link {
+            color: white;
+            margin: 0 0.5rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .prediction-card {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .selector-card {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .trend-badge {
+            font-size: 1.2rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+        }
+        .trend-up {
+            background-color: #d4edda;
+            color: #155724;
+        }
+        .trend-down {
+            background-color: #f8d7da;
+            color: #721c24;
+        }
+        .trend-stable {
+            background-color: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-4">🐔 가농바이오 양계 대시보드</h1>
+            <ul class="nav nav-pills mt-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">대시보드</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/compare.html">동별 비교</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/trends.html">추이 그래프</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search.html">데이터 검색</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/predictions.html">예측 분석</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 파일 선택 -->
+        <div class="selector-card">
+            <h4 class="mb-3">🔮 예측 설정</h4>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <label class="form-label">계군 선택</label>
+                    <select id="fileSelect" class="form-select" onchange="loadPredictions()">
+                        <option value="">계군을 선택하세요</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">예측 기간 (일)</label>
+                    <select id="daysAhead" class="form-select" onchange="loadPredictions()">
+                        <option value="7">7일</option>
+                        <option value="14">14일</option>
+                        <option value="30" selected>30일</option>
+                        <option value="60">60일</option>
+                        <option value="90">90일</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">&nbsp;</label>
+                    <div>
+                        <span class="text-muted" id="statusText">계군을 선택하세요</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 추세 분석 요약 -->
+        <div class="prediction-card" id="trendSummary" style="display: none;">
+            <h4 class="mb-4">📈 추세 분석</h4>
+            <div class="row">
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <div class="text-muted mb-2">현재 산란율</div>
+                        <div class="h2 text-primary" id="currentLayingRate">-</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <div class="text-muted mb-2">예측 추세</div>
+                        <span id="trendBadge" class="trend-badge">-</span>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="text-center">
+                        <div class="text-muted mb-2">예상 변화량</div>
+                        <div class="h2" id="predictedChange">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 예측 그래프 -->
+        <div class="prediction-card" id="chartContainer" style="display: none;">
+            <h4 class="mb-4">📊 산란율 예측 그래프</h4>
+            <canvas id="predictionChart"></canvas>
+        </div>
+
+        <!-- 예측 데이터 테이블 -->
+        <div class="prediction-card" id="tableContainer" style="display: none;">
+            <h4 class="mb-4">📋 예측 데이터 상세</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>일령</th>
+                            <th>예측 산란율</th>
+                            <th>예측 폐사율</th>
+                            <th>예측 파란율</th>
+                        </tr>
+                    </thead>
+                    <tbody id="predictionsTable">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let predictionChart = null;
+
+        // 파일 목록 로드
+        async function loadFiles() {
+            try {
+                const response = await fetch(`${API_BASE}/api/files`);
+                const data = await response.json();
+
+                const select = document.getElementById('fileSelect');
+                select.innerHTML = '<option value="">계군을 선택하세요</option>' +
+                    data.files.map(file => `
+                        <option value="${file.id}">
+                            ${file.layer_house} ${file.layer_batch} (일령: ${file.latest_age_day || '-'}일)
+                        </option>
+                    `).join('');
+
+            } catch (error) {
+                console.error('Failed to load files:', error);
+            }
+        }
+
+        // 예측 데이터 로드
+        async function loadPredictions() {
+            const fileId = document.getElementById('fileSelect').value;
+            const daysAhead = document.getElementById('daysAhead').value;
+            const statusText = document.getElementById('statusText');
+
+            if (!fileId) {
+                document.getElementById('trendSummary').style.display = 'none';
+                document.getElementById('chartContainer').style.display = 'none';
+                document.getElementById('tableContainer').style.display = 'none';
+                statusText.textContent = '계군을 선택하세요';
+                return;
+            }
+
+            statusText.textContent = '예측 분석 중...';
+
+            try {
+                const response = await fetch(`${API_BASE}/api/predictions/${fileId}?days_ahead=${daysAhead}`);
+                const data = await response.json();
+
+                if (data.status === 'error') {
+                    alert(data.message);
+                    statusText.textContent = '예측 실패';
+                    return;
+                }
+
+                displayPredictions(data);
+                statusText.textContent = `예측 완료 (현재 일령: ${data.current_age}일)`;
+
+            } catch (error) {
+                console.error('Failed to load predictions:', error);
+                alert('예측 데이터 로드 실패: ' + error.message);
+                statusText.textContent = '예측 실패';
+            }
+        }
+
+        // 예측 결과 표시
+        function displayPredictions(data) {
+            // 추세 요약 표시
+            document.getElementById('trendSummary').style.display = 'block';
+            document.getElementById('currentLayingRate').textContent =
+                data.trend_analysis.current_laying_rate.toFixed(1) + '%';
+
+            const trendBadge = document.getElementById('trendBadge');
+            const trend = data.trend_analysis.laying_rate_trend;
+            trendBadge.textContent = trend;
+            trendBadge.className = 'trend-badge ' +
+                (trend === '상승' ? 'trend-up' : trend === '하락' ? 'trend-down' : 'trend-stable');
+
+            const change = data.trend_analysis.predicted_change;
+            const changeEl = document.getElementById('predictedChange');
+            changeEl.textContent = (change >= 0 ? '+' : '') + change.toFixed(1) + '%';
+            changeEl.className = 'h2 ' + (change >= 0 ? 'text-success' : 'text-danger');
+
+            // 그래프 표시
+            displayChart(data);
+
+            // 테이블 표시
+            displayTable(data);
+        }
+
+        // 예측 그래프 표시
+        function displayChart(data) {
+            document.getElementById('chartContainer').style.display = 'block';
+
+            const ctx = document.getElementById('predictionChart').getContext('2d');
+
+            // 기존 차트 파괴
+            if (predictionChart) {
+                predictionChart.destroy();
+            }
+
+            const ages = data.predictions.map(p => p.age_day);
+            const layingRates = data.predictions.map(p => p.predicted_laying_rate);
+
+            predictionChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: ages,
+                    datasets: [{
+                        label: '예측 산란율 (%)',
+                        data: layingRates,
+                        borderColor: '#667eea',
+                        backgroundColor: 'rgba(102, 126, 234, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    plugins: {
+                        legend: {
+                            display: true,
+                            position: 'top'
+                        },
+                        tooltip: {
+                            mode: 'index',
+                            intersect: false,
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '%';
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: '일령 (일)'
+                            }
+                        },
+                        y: {
+                            title: {
+                                display: true,
+                                text: '산란율 (%)'
+                            },
+                            beginAtZero: false,
+                            min: 0,
+                            max: 100
+                        }
+                    }
+                }
+            });
+        }
+
+        // 예측 테이블 표시
+        function displayTable(data) {
+            document.getElementById('tableContainer').style.display = 'block';
+
+            const tbody = document.getElementById('predictionsTable');
+            tbody.innerHTML = data.predictions.map(pred => `
+                <tr>
+                    <td>${pred.age_day}일</td>
+                    <td>${pred.predicted_laying_rate.toFixed(2)}%</td>
+                    <td>${pred.predicted_mortality_rate.toFixed(3)}%</td>
+                    <td>${pred.predicted_broken_egg_rate.toFixed(3)}%</td>
+                </tr>
+            `).join('');
+        }
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFiles();
+        });
+    </script>
+</body>
+</html>
