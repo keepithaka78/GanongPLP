@@ -90,6 +90,7 @@ class DataLoader:
         self.db.query(LayerDaily).filter_by(file_id=file_id).delete()
 
         # 컬럼 매핑 (엑셀 컬럼명 -> DB 컬럼명)
+        # 주의: 오파란율 = 파란율 + 오란율 (이미 합산된 값)
         column_mapping = {
             'Unnamed: 1': 'week_age',
             'Unnamed: 2': 'record_date',
@@ -99,7 +100,7 @@ class DataLoader:
             '도태': 'culling_count',
             '폐사율': 'mortality_rate',
             'HH산란율': 'laying_rate',
-            '파란율': 'broken_egg_rate',
+            '오파란율': 'broken_egg_rate',  # 오파란율 사용 (파란율+오란율 합산값)
             '일일공급량(kg)': 'feed_intake',
             '왕란': 'egg_production',  # 왕란 컬럼을 egg_production으로 매핑
         }

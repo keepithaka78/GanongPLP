@@ -13,6 +13,7 @@ from services.scheduler import UpdateScheduler
 from typing import List, Dict
 from datetime import datetime
 import os
+import glob
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -522,12 +523,14 @@ def get_alerts(db: Session = Depends(get_db)):
     """
     알림 및 경고 조회
 
-    임계값:
-    - 산란율 < 70%: 경고
+    HL-Manual 시트의 주령별 기준에 따라 산란율 체크
+    - 산란율이 HL-Manual 기준 미달 시 경고
     - 폐사율 > 0.1%: 경고
     - 파란율 > 2%: 경고
     """
     from sqlalchemy import func, and_
+    from services.hl_manual_parser import HLManualParser
+    import glob
 
     # 각 파일의 최신 레코드 조회
     subquery = db.query(
@@ -552,18 +555,50 @@ def get_alerts(db: Session = Depends(get_db)):
 
         house_label = f"{file_info.layer_house} {file_info.layer_batch}"
 
-        # 산란율 체크 (70% 미만 경고)
-        if record.laying_rate and record.laying_rate < 70:
-            alerts.append({
-                "type": "laying_rate",
-                "severity": "warning" if record.laying_rate >= 60 else "critical",
-                "house": house_label,
-                "message": f"산란율 낮음: {record.laying_rate:.1f}%",
-                "value": record.laying_rate,
-                "threshold": 70,
-                "age_day": record.age_day,
-                "date": record.record_date.isoformat() if record.record_date else None
-            })
+        # HL-Manual 파서 초기화 (해당 파일의 엑셀 찾기)
+        hl_parser = None
+        if not IS_CLOUD and os.path.exists(EXCEL_DIR):
+            excel_files = glob.glob(os.path.join(EXCEL_DIR, "*.xlsm"))
+            for excel_file in excel_files:
+                if file_info.layer_house in excel_file and file_info.layer_batch in excel_file:
+                    try:
+                        hl_parser = HLManualParser(excel_file)
+                        break
+                    except:
+                        pass
+
+        # 산란율 체크 (HL-Manual 기준 사용)
+        if record.laying_rate and record.week_age:
+            threshold = 70  # 기본 임계값
+            warning_message = None
+
+            if hl_parser:
+                standard = hl_parser.get_standard(record.week_age)
+                if standard and standard['min_laying_rate'] > 0:
+                    threshold = standard['min_laying_rate']
+                    if record.laying_rate < threshold:
+                        warning_message = hl_parser.check_laying_rate(record.week_age, record.laying_rate)
+
+            # HL-Manual 기준이 없으면 기본 70% 기준 사용
+            if not warning_message and record.laying_rate < 70:
+                warning_message = f"산란율 낮음: {record.laying_rate:.1f}%"
+
+            if warning_message:
+                # 기준 대비 차이 계산
+                diff_percent = abs(record.laying_rate - threshold)
+                severity = "critical" if diff_percent > 10 else "warning"
+
+                alerts.append({
+                    "type": "laying_rate",
+                    "severity": severity,
+                    "house": house_label,
+                    "message": warning_message,
+                    "value": record.laying_rate,
+                    "threshold": threshold,
+                    "age_day": record.age_day,
+                    "week_age": record.week_age,
+                    "date": record.record_date.isoformat() if record.record_date else None
+                })
 
         # 폐사율 체크 (0.1% 초과 경고)
         if record.mortality_rate and record.mortality_rate > 0.1:
