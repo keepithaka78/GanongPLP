@@ -24,14 +24,20 @@ app = FastAPI(
 # 정적 파일 경로
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
 
-# 엑셀 파일 경로
-EXCEL_DIR = r"C:\Users\yimmj\OneDrive\Desktop\산란기록부 Renewal\PLP가농바이오\현재 계군"
+# 엑셀 파일 경로 (환경 변수 또는 기본값 사용)
+EXCEL_DIR = os.environ.get("EXCEL_DIR", r"C:\Users\yimmj\OneDrive\Desktop\산란기록부 Renewal\PLP가농바이오\현재 계군")
 
-# 파일 감시자 초기화
-file_watcher = FileWatcher(EXCEL_DIR)
+# 클라우드 환경 감지 (엑셀 파일이 없으면 클라우드로 판단)
+IS_CLOUD = not os.path.exists(EXCEL_DIR)
 
-# 스케줄러 초기화
-scheduler = UpdateScheduler(file_watcher)
+# 파일 감시자 및 스케줄러 초기화 (로컬 환경에서만)
+if not IS_CLOUD:
+    file_watcher = FileWatcher(EXCEL_DIR)
+    scheduler = UpdateScheduler(file_watcher)
+else:
+    file_watcher = None
+    scheduler = None
+    print("[INFO] 클라우드 환경 감지 - 파일 감시 및 스케줄러 비활성화")
 
 # CORS 설정 (프론트엔드 연결 허용)
 app.add_middleware(
@@ -47,15 +53,20 @@ app.add_middleware(
 def startup_event():
     """서버 시작 시 데이터베이스 초기화"""
     init_db()
-    # 스케줄러 시작 (매일 새벽 2시에 자동 업데이트)
-    scheduler.start(hour=2, minute=0)
+
+    # 로컬 환경에서만 스케줄러 시작
+    if scheduler:
+        scheduler.start(hour=2, minute=0)
+        print("[OK] 스케줄러 시작 (로컬 환경)")
+
     print("[OK] FastAPI 서버 시작")
 
 
 @app.on_event("shutdown")
 def shutdown_event():
     """서버 종료 시 스케줄러 정리"""
-    scheduler.stop()
+    if scheduler:
+        scheduler.stop()
     print("[OK] FastAPI 서버 종료")
 
 
@@ -407,6 +418,13 @@ def reload_data(force: bool = False):
     Args:
         force: True일 경우 모든 파일 강제 재로드, False일 경우 변경된 파일만 로드
     """
+    if IS_CLOUD:
+        return {
+            "status": "unavailable",
+            "message": "클라우드 환경에서는 데이터 새로고침을 사용할 수 없습니다",
+            "timestamp": datetime.now().isoformat()
+        }
+
     try:
         if force:
             result = file_watcher.reload_all_files()
@@ -449,6 +467,18 @@ def get_scheduler_status():
     """
     스케줄러 상태 조회
     """
+    if IS_CLOUD:
+        return {
+            "status": "success",
+            "scheduler": {
+                "is_running": False,
+                "next_run": None,
+                "last_update": None,
+                "message": "클라우드 환경 - 스케줄러 비활성화"
+            },
+            "timestamp": datetime.now().isoformat()
+        }
+
     try:
         status = scheduler.get_status()
         return {
@@ -469,6 +499,13 @@ def trigger_update():
     """
     스케줄러 수동 트리거 (테스트용)
     """
+    if IS_CLOUD:
+        return {
+            "status": "unavailable",
+            "message": "클라우드 환경에서는 수동 업데이트를 사용할 수 없습니다",
+            "timestamp": datetime.now().isoformat()
+        }
+
     try:
         result = scheduler.trigger_now()
         return result
@@ -687,9 +724,13 @@ app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
 if __name__ == "__main__":
     import uvicorn
+
+    # 포트는 환경 변수에서 가져오거나 기본값 8000 사용 (Render 지원)
+    port = int(os.environ.get("PORT", 8000))
+
     uvicorn.run(
         "main:app",
         host="0.0.0.0",
-        port=8000,
-        reload=True
+        port=port,
+        reload=not IS_CLOUD  # 클라우드에서는 reload 비활성화
     )

@@ -36,10 +36,12 @@ env/
 *~
 
 # Database
-*.db
 *.db-journal
 *.sqlite
 *.sqlite3
+
+# Allow poultry.db for deployment
+!data/poultry.db
 
 # Environment Variables
 .env
