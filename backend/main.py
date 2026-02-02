@@ -613,15 +613,16 @@ def get_alerts(db: Session = Depends(get_db)):
                 "date": record.record_date.isoformat() if record.record_date else None
             })
 
-        # 파란율 체크 (2% 초과 경고)
-        if record.broken_egg_rate and record.broken_egg_rate > 2:
+        # 파란율 체크 (10% 초과 경고)
+        # 오파란율(파란+오란 합산) 기준: 10% 초과 시 경고
+        if record.broken_egg_rate and record.broken_egg_rate > 10:
             alerts.append({
                 "type": "broken_egg_rate",
-                "severity": "warning" if record.broken_egg_rate <= 3 else "critical",
+                "severity": "warning" if record.broken_egg_rate <= 15 else "critical",
                 "house": house_label,
                 "message": f"파란율 높음: {record.broken_egg_rate:.2f}%",
                 "value": record.broken_egg_rate,
-                "threshold": 2,
+                "threshold": 10,
                 "age_day": record.age_day,
                 "date": record.record_date.isoformat() if record.record_date else None
             })
