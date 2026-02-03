@@ -69,6 +69,9 @@
                     <a class="nav-link" href="/compare.html">동일 일령별 비교</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="/egg-production.html">계란 생산</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link active" href="/trends.html">추이 그래프</a>
                 </li>
                 <li class="nav-item">
@@ -144,6 +147,19 @@
                 const response = await fetch(`${API_BASE}/api/files`);
                 const data = await response.json();
                 allFiles = data.files;
+
+                // 동별, 차수별로 정렬
+                allFiles.sort((a, b) => {
+                    // 동별로 정렬 (숫자 기준)
+                    const houseA = parseInt(a.layer_house.replace('동', ''));
+                    const houseB = parseInt(b.layer_house.replace('동', ''));
+                    if (houseA !== houseB) return houseA - houseB;
+
+                    // 같은 동이면 차수별로 정렬 (숫자 기준, 내림차순)
+                    const batchA = parseInt(a.layer_batch.replace('차', ''));
+                    const batchB = parseInt(b.layer_batch.replace('차', ''));
+                    return batchB - batchA;
+                });
 
                 const fileList = document.getElementById('fileList');
                 fileList.innerHTML = allFiles.map((file, index) => `

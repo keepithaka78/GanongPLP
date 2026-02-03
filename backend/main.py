@@ -168,6 +168,7 @@ def get_layer_summary(
                 "house": file_info.layer_house,
                 "batch": file_info.layer_batch,
                 "age_day": record.age_day,
+                "week_age": record.week_age,
                 "laying_rate": laying_rate,
                 "mortality_rate": mortality_rate,
                 "broken_egg_rate": broken_egg_rate,
@@ -176,9 +177,28 @@ def get_layer_summary(
                 "record_date": record.record_date.isoformat() if record.record_date else None
             })
 
+    # 같은 동에 대해 최신 차수만 필터링
+    # 각 동별로 그룹화하고 최신 차수만 선택
+    houses_dict = {}
+    for item in result:
+        house_key = item['house']
+        if house_key not in houses_dict:
+            houses_dict[house_key] = item
+        else:
+            # 차수 번호로 비교하여 더 큰 번호(최신)만 유지
+            try:
+                current_batch = int(item['batch'].replace('차', ''))
+                existing_batch = int(houses_dict[house_key]['batch'].replace('차', ''))
+                if current_batch > existing_batch:
+                    houses_dict[house_key] = item
+            except:
+                pass
+
+    final_result = list(houses_dict.values())
+
     return {
-        "total_houses": len(result),
-        "data": result
+        "total_houses": len(final_result),
+        "data": final_result
     }
 
 
@@ -210,6 +230,7 @@ def compare_layer_by_age(age_day: int, db: Session = Depends(get_db)):
             "house": file_meta.layer_house,
             "batch": file_meta.layer_batch,
             "age_day": record.age_day,
+            "week_age": record.week_age,
             "laying_rate": laying_rate,
             "mortality_rate": mortality_rate,
             "broken_egg_rate": broken_egg_rate,
@@ -330,6 +351,7 @@ def search_layer_data(
                 "house": file_info.layer_house,
                 "batch": file_info.layer_batch,
                 "age_day": record.age_day,
+                "week_age": record.week_age,
                 "record_date": record.record_date.isoformat() if record.record_date else None,
                 "laying_rate": laying_rate,
                 "mortality_rate": mortality_rate,
@@ -391,6 +413,7 @@ def get_layer_trends(file_id: int, db: Session = Depends(get_db)):
 
         result.append({
             "age_day": record.age_day,
+            "week_age": record.week_age,
             "record_date": record.record_date.isoformat() if record.record_date else None,
             "laying_rate": laying_rate,
             "mortality_rate": mortality_rate,
@@ -843,6 +866,140 @@ def get_predictions(file_id: int, days_ahead: int = 7, db: Session = Depends(get
     }
 
     return predictions
+
+
+@app.get("/api/layer/standards")
+def get_standards(age_day: int, db: Session = Depends(get_db)):
+    """
+    특정 일령(주령)에 해당하는 HL-Manual 기준값 반환
+
+    Args:
+        age_day: 일령
+
+    Returns:
+        산란율, 폐사율, 사료섭취 기준값
+    """
+    from services.hl_manual_parser import HLManualParser
+
+    week_age = age_day // 7  # 일령 → 주령 변환
+
+    standards = {
+        "age_day": age_day,
+        "week_age": week_age,
+        "laying_rate": {
+            "min": None,
+            "max": None
+        },
+        "mortality_rate": {
+            "min": None,
+            "max": None
+        },
+        "feed_intake": {
+            "min": None,
+            "max": None,
+            "unit": "ml/day"
+        },
+        "has_manual_data": False
+    }
+
+    # HL-Manual 파서 초기화
+    if not IS_CLOUD and os.path.exists(EXCEL_DIR):
+        excel_files = glob.glob(os.path.join(EXCEL_DIR, "*.xlsm"))
+        if excel_files:
+            try:
+                # 첫 번째 엑셀 파일의 HL-Manual 사용 (모든 파일이 동일한 기준값 사용)
+                hl_parser = HLManualParser(excel_files[0])
+                standard = hl_parser.get_standard(week_age)
+
+                if standard:
+                    standards["has_manual_data"] = True
+
+                    # 산란율
+                    if standard.get('min_laying_rate') is not None:
+                        standards["laying_rate"]["min"] = standard['min_laying_rate']
+                    if standard.get('max_laying_rate') is not None:
+                        standards["laying_rate"]["max"] = standard['max_laying_rate']
+
+                    # 폐사율
+                    if standard.get('min_mortality_rate') is not None:
+                        standards["mortality_rate"]["min"] = standard['min_mortality_rate']
+                    if standard.get('max_mortality_rate') is not None:
+                        standards["mortality_rate"]["max"] = standard['max_mortality_rate']
+
+                    # 사료섭취 (ml/day)
+                    if standard.get('min_feed_intake') is not None:
+                        standards["feed_intake"]["min"] = standard['min_feed_intake']
+                    if standard.get('max_feed_intake') is not None:
+                        standards["feed_intake"]["max"] = standard['max_feed_intake']
+            except Exception as e:
+                print(f"[ERROR] HL-Manual 파서 오류: {e}")
+
+    return standards
+
+
+@app.get("/api/layer/egg-production")
+def get_egg_production(db: Session = Depends(get_db)):
+    """
+    현재 사육중인 계군의 일자별 계란 생산수 (규격별)
+
+    각 계군의 최신 age_day 이하의 데이터만 포함 (현재 사육중인 계군)
+    """
+    from sqlalchemy import func, and_
+
+    # 각 파일의 최신 age_day 구하기 (현재 사육중인 계군 판단)
+    latest_age_subquery = db.query(
+        LayerDaily.file_id,
+        func.max(LayerDaily.age_day).label('max_age')
+    ).filter(LayerDaily.laying_rate.isnot(None)).group_by(LayerDaily.file_id).subquery()
+
+    # 현재 사육중인 계군의 모든 데이터 (일자별)
+    records = db.query(
+        LayerDaily.record_date,
+        func.sum(LayerDaily.extra_large_eggs).label('extra_large'),
+        func.sum(LayerDaily.large_eggs).label('large'),
+        func.sum(LayerDaily.medium_large_eggs).label('medium_large'),
+        func.sum(LayerDaily.medium_eggs).label('medium'),
+        func.sum(LayerDaily.small_eggs).label('small'),
+        func.sum(LayerDaily.other_eggs).label('other')
+    ).join(
+        latest_age_subquery,
+        and_(
+            LayerDaily.file_id == latest_age_subquery.c.file_id,
+            LayerDaily.age_day <= latest_age_subquery.c.max_age
+        )
+    ).filter(
+        LayerDaily.laying_rate.isnot(None)
+    ).group_by(
+        LayerDaily.record_date
+    ).order_by(
+        LayerDaily.record_date
+    ).all()
+
+    result = [
+        {
+            "record_date": str(record.record_date),
+            "extra_large_eggs": record.extra_large or 0,      # 왕란
+            "large_eggs": record.large or 0,                   # 특란
+            "medium_large_eggs": record.medium_large or 0,     # 대란
+            "medium_eggs": record.medium or 0,                 # 중란
+            "small_eggs": record.small or 0,                   # 소란
+            "other_eggs": record.other or 0,                   # 오파란
+            "total_eggs": sum([
+                record.extra_large or 0,
+                record.large or 0,
+                record.medium_large or 0,
+                record.medium or 0,
+                record.small or 0,
+                record.other or 0
+            ])
+        }
+        for record in records
+    ]
+
+    return {
+        "total_records": len(result),
+        "data": result
+    }
 
 
 # 정적 파일 서빙 (마지막에 추가 - 다른 라우트가 우선)

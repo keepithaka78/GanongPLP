@@ -50,8 +50,16 @@ class LayerDaily(Base):
 
     # 산란 관련
     laying_rate = Column(Float)          # 산란율
-    egg_production = Column(Integer)     # 산란수
+    egg_production = Column(Integer)     # 산란수 (전체)
     broken_egg_rate = Column(Float)      # 오란율 (파란율)
+
+    # 계란 규격별 개수
+    extra_large_eggs = Column(Integer)      # 왕란
+    large_eggs = Column(Integer)            # 특란
+    medium_large_eggs = Column(Integer)     # 대란
+    medium_eggs = Column(Integer)           # 중란
+    small_eggs = Column(Integer)            # 소란
+    other_eggs = Column(Integer)            # 오파란
 
     # 사료
     feed_intake = Column(Float)          # 사료섭취량

@@ -59,6 +59,9 @@
                     <a class="nav-link active" href="/compare.html">동일 일령별 비교</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="/egg-production.html">계란 생산</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="/trends.html">추이 그래프</a>
                 </li>
                 <li class="nav-item">
@@ -132,6 +135,7 @@
     <script>
         const API_BASE = window.location.origin;
         let charts = {};
+        let currentStandards = {};
 
         // Chart.js 기본 설정
         Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
@@ -166,9 +170,24 @@
             document.getElementById('ageDisplay').textContent = `${age}일령`;
         }
 
+        // 기준값 로드
+        async function loadStandards(ageDay) {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/standards?age_day=${ageDay}`);
+                currentStandards = await response.json();
+                console.log('Standards loaded:', currentStandards);
+            } catch (error) {
+                console.error('Failed to load standards:', error);
+                currentStandards = {};
+            }
+        }
+
         // 비교 데이터 로드
         async function loadComparisonData(ageDay) {
             try {
+                // 기준값 로드
+                await loadStandards(ageDay);
+
                 const response = await fetch(`${API_BASE}/api/layer/compare?age_day=${ageDay}`);
                 const data = await response.json();
 
@@ -179,7 +198,7 @@
                     updateChart('layingRateChart', [], [], '산란율 (%)', '#667eea');
                     updateChart('mortalityRateChart', [], [], '폐사율 (%)', '#f56565');
                     updateChart('brokenEggRateChart', [], [], '파란율 (%)', '#ed8936');
-                    updateChart('feedIntakeChart', [], [], '사료섭취량 (kg)', '#48bb78');
+                    updateChart('feedIntakeChart', [], [], '수당 사료섭취량 (g)', '#48bb78');
                     updateTable([]);
                     return;
                 }
@@ -193,11 +212,20 @@
 
                 console.log('Chart data prepared:', { labels, layingRates });
 
-                // 차트 업데이트
-                updateChart('layingRateChart', labels, layingRates, '산란율 (%)', '#667eea');
-                updateChart('mortalityRateChart', labels, mortalityRates, '폐사율 (%)', '#f56565');
+                // 차트 업데이트 (기준값 함께 전달)
+                updateChart('layingRateChart', labels, layingRates, '산란율 (%)', '#667eea', {
+                    min: currentStandards.laying_rate?.min,
+                    max: currentStandards.laying_rate?.max
+                });
+                updateChart('mortalityRateChart', labels, mortalityRates, '폐사율 (%)', '#f56565', {
+                    min: currentStandards.mortality_rate?.min,
+                    max: currentStandards.mortality_rate?.max
+                });
                 updateChart('brokenEggRateChart', labels, brokenEggRates, '파란율 (%)', '#ed8936');
-                updateChart('feedIntakeChart', labels, feedPerBirds, '수당 사료섭취량 (g)', '#48bb78');
+                updateChart('feedIntakeChart', labels, feedPerBirds, '수당 사료섭취량 (g)', '#48bb78', {
+                    min: currentStandards.feed_intake?.min ? currentStandards.feed_intake.min / 1000 * 80 : null,
+                    max: currentStandards.feed_intake?.max ? currentStandards.feed_intake.max / 1000 * 80 : null
+                });
 
                 // 테이블 업데이트
                 updateTable(data.data);
@@ -209,7 +237,7 @@
         }
 
         // 차트 생성/업데이트
-        function updateChart(chartId, labels, data, label, backgroundColor) {
+        function updateChart(chartId, labels, data, label, backgroundColor, standards = {}) {
             const ctx = document.getElementById(chartId);
 
             // 기존 차트 제거
@@ -217,18 +245,76 @@
                 charts[chartId].destroy();
             }
 
+            // 데이터셋 준비
+            const datasets = [{
+                label: label,
+                data: data,
+                backgroundColor: backgroundColor,
+                borderColor: backgroundColor,
+                borderWidth: 1
+            }];
+
+            // 기준선 추가 (산란율, 폐사율, 사료섭취)
+            const plugins = {
+                legend: {
+                    display: true,
+                    position: 'top'
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            if (context.datasetIndex === 0) {
+                                const suffix = chartId === 'feedIntakeChart' ? 'g' : '%';
+                                return `${context.parsed.y.toFixed(1)}${suffix}`;
+                            }
+                        }
+                    }
+                },
+                annotation: {
+                    annotations: {}
+                }
+            };
+
+            // 기준값이 있으면 기준선 추가 (최솟값)
+            if (standards.min !== undefined && standards.min !== null) {
+                plugins.annotation.annotations.minLine = {
+                    type: 'line',
+                    yMin: standards.min,
+                    yMax: standards.min,
+                    borderColor: '#ff6b6b',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                        content: [`기준선(최소): ${standards.min.toFixed(2)}`],
+                        enabled: true,
+                        position: 'end'
+                    }
+                };
+            }
+
+            // 기준값(최댓값)이 있으면 추가
+            if (standards.max !== undefined && standards.max !== null) {
+                plugins.annotation.annotations.maxLine = {
+                    type: 'line',
+                    yMin: standards.max,
+                    yMax: standards.max,
+                    borderColor: '#4dabf7',
+                    borderWidth: 2,
+                    borderDash: [5, 5],
+                    label: {
+                        content: [`기준선(최대): ${standards.max.toFixed(2)}`],
+                        enabled: true,
+                        position: 'end'
+                    }
+                };
+            }
+
             // 새 차트 생성
             charts[chartId] = new Chart(ctx, {
                 type: 'bar',
                 data: {
                     labels: labels,
-                    datasets: [{
-                        label: label,
-                        data: data,
-                        backgroundColor: backgroundColor,
-                        borderColor: backgroundColor,
-                        borderWidth: 1
-                    }]
+                    datasets: datasets
                 },
                 options: {
                     responsive: true,
@@ -258,6 +344,44 @@
                     }
                 }
             });
+
+            // 기준선을 drawAfter 플러그인으로 표시
+            if (standards.min !== undefined && standards.min !== null || standards.max !== undefined && standards.max !== null) {
+                const plugin = {
+                    id: 'standardLines',
+                    afterDatasetsDraw(chart) {
+                        const {ctx, chartArea: {left, top, width, height}, scales: {y}} = chart;
+
+                        if (standards.min !== undefined && standards.min !== null) {
+                            const yPixel = y.getPixelForValue(standards.min);
+                            ctx.save();
+                            ctx.strokeStyle = '#ff6b6b';
+                            ctx.lineWidth = 2;
+                            ctx.setLineDash([5, 5]);
+                            ctx.beginPath();
+                            ctx.moveTo(left, yPixel);
+                            ctx.lineTo(left + width, yPixel);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+
+                        if (standards.max !== undefined && standards.max !== null) {
+                            const yPixel = y.getPixelForValue(standards.max);
+                            ctx.save();
+                            ctx.strokeStyle = '#4dabf7';
+                            ctx.lineWidth = 2;
+                            ctx.setLineDash([5, 5]);
+                            ctx.beginPath();
+                            ctx.moveTo(left, yPixel);
+                            ctx.lineTo(left + width, yPixel);
+                            ctx.stroke();
+                            ctx.restore();
+                        }
+                    }
+                };
+
+                Chart.register(plugin);
+            }
         }
 
         // 테이블 업데이트

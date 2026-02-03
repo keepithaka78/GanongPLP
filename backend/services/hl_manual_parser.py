@@ -22,13 +22,18 @@ class HLManualParser:
         HL-Manual 시트에서 주령별 기준 파싱
 
         Returns:
-            {주령: {최소산란율, 최대산란율, 최소난중, 최대난중}}
+            {주령: {산란율min/max, 폐사율min/max, 사료섭취min/max, 난중}}
         """
         try:
             # HL-Manual 시트 읽기 (헤더 없음)
             df = pd.read_excel(self.excel_path, sheet_name='HL-Manual', header=None)
 
-            # 주령은 0열, 산란율은 7-8열(HD산란율 최소/최대), 난중은 14-15열
+            # 컬럼 매핑 (0-based indexing)
+            # A(0): 주령
+            # H(7)-I(8): HD산란율 최소/최대
+            # R(17)-S(18): 폐사율 최소/최대
+            # T(19)-U(20): 사료섭취 ml 최소/최대 (ml/day)
+            # N(13): HH난중 기준값
             standards = {}
 
             # 4번째 행부터 데이터 시작 (0-based index = 4)
@@ -39,19 +44,34 @@ class HLManualParser:
                 if pd.isna(week):
                     continue
 
-                week = int(week)
+                try:
+                    week = int(week)
+                except:
+                    continue
 
-                # HD산란율 (7-8열)
-                min_laying_rate = row[7] if not pd.isna(row[7]) else 0
-                max_laying_rate = row[8] if not pd.isna(row[8]) else 0
+                # HD산란율 (열 7-8)
+                min_laying_rate = row[7] if len(row) > 7 and not pd.isna(row[7]) else None
+                max_laying_rate = row[8] if len(row) > 8 and not pd.isna(row[8]) else None
 
-                # HH난중 manual (14열)
-                standard_egg_weight = row[14] if not pd.isna(row[14]) else 0
+                # 폐사율 (열 17-18)
+                min_mortality_rate = row[17] if len(row) > 17 and not pd.isna(row[17]) else None
+                max_mortality_rate = row[18] if len(row) > 18 and not pd.isna(row[18]) else None
+
+                # 사료섭취 ml (열 19-20)
+                min_feed_intake = row[19] if len(row) > 19 and not pd.isna(row[19]) else None
+                max_feed_intake = row[20] if len(row) > 20 and not pd.isna(row[20]) else None
+
+                # HH난중 기준 (열 13)
+                standard_egg_weight = row[13] if len(row) > 13 and not pd.isna(row[13]) else None
 
                 standards[week] = {
-                    'min_laying_rate': float(min_laying_rate),
-                    'max_laying_rate': float(max_laying_rate),
-                    'standard_egg_weight': float(standard_egg_weight)
+                    'min_laying_rate': float(min_laying_rate) if min_laying_rate is not None else None,
+                    'max_laying_rate': float(max_laying_rate) if max_laying_rate is not None else None,
+                    'min_mortality_rate': float(min_mortality_rate) if min_mortality_rate is not None else None,
+                    'max_mortality_rate': float(max_mortality_rate) if max_mortality_rate is not None else None,
+                    'min_feed_intake': float(min_feed_intake) if min_feed_intake is not None else None,  # ml/day
+                    'max_feed_intake': float(max_feed_intake) if max_feed_intake is not None else None,  # ml/day
+                    'standard_egg_weight': float(standard_egg_weight) if standard_egg_weight is not None else None
                 }
 
             return standards

@@ -102,7 +102,12 @@ class DataLoader:
             'HH산란율': 'laying_rate',
             '오파란율': 'broken_egg_rate',  # 오파란율 사용 (파란율+오란율 합산값)
             '일일공급량(kg)': 'feed_intake',
-            '왕란': 'egg_production',  # 왕란 컬럼을 egg_production으로 매핑
+            '왕란': 'extra_large_eggs',      # 왕란
+            '특란': 'large_eggs',            # 특란
+            '대란': 'medium_large_eggs',     # 대란
+            '중란': 'medium_eggs',           # 중란
+            '소란': 'small_eggs',            # 소란
+            '오파란': 'other_eggs',          # 오파란
         }
 
         # 왕란 데이터가 있는 행만 필터링
@@ -123,6 +128,17 @@ class DataLoader:
                     elif db_col == 'record_date' and isinstance(value, datetime):
                         value = value.date()
                     record_data[db_col] = value
+
+            # egg_production 계산 (6가지 규격의 합)
+            egg_grades = [
+                record_data.get('extra_large_eggs', 0) or 0,
+                record_data.get('large_eggs', 0) or 0,
+                record_data.get('medium_large_eggs', 0) or 0,
+                record_data.get('medium_eggs', 0) or 0,
+                record_data.get('small_eggs', 0) or 0,
+                record_data.get('other_eggs', 0) or 0,
+            ]
+            record_data['egg_production'] = sum(egg_grades)
 
             records.append(LayerDaily(**record_data))
 

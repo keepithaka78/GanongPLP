@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>계란 생산 - 가농바이오 양계 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .nav-pills .nav-link {
+            color: white;
+            margin: 0 0.5rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-controls {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .tab-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-bottom: 1rem;
+        }
+        .tab-btn {
+            padding: 0.5rem 1rem;
+            border: 2px solid #ddd;
+            background: white;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .tab-btn.active {
+            background-color: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+        .tab-btn:hover {
+            background-color: #f0f0f0;
+        }
+        .tab-btn.active:hover {
+            background-color: #667eea;
+        }
+        .egg-grade-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-4">🐔 가농바이오 양계 대시보드</h1>
+            <ul class="nav nav-pills mt-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">대시보드</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/compare.html">동일 일령별 비교</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/egg-production.html">계란 생산</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/trends.html">추이 그래프</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search.html">데이터 검색</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/predictions.html">예측 분석</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 차트 유형 선택 -->
+        <div class="chart-controls">
+            <h4 class="mb-3">📊 그래프 유형 선택</h4>
+            <div class="tab-buttons">
+                <button class="tab-btn active" onclick="switchChartType('bar')">
+                    📊 막대 그래프 (스택형)
+                </button>
+                <button class="tab-btn" onclick="switchChartType('line')">
+                    📈 선 그래프
+                </button>
+            </div>
+            <small class="text-muted">
+                현재 사육중인 계군의 일자별 계란 생산수를 규격별로 표시합니다
+            </small>
+        </div>
+
+        <!-- 계란 규격 범례 -->
+        <div class="chart-container">
+            <h5 class="mb-3">🥚 계란 규격 설명</h5>
+            <div class="egg-grade-legend">
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FFD700;"></div>
+                    <span><strong>왕란</strong> - 70g 이상</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FFA500;"></div>
+                    <span><strong>특란</strong> - 65~70g</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FF8C00;"></div>
+                    <span><strong>대란</strong> - 60~65g</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #FF6347;"></div>
+                    <span><strong>중란</strong> - 50~60g</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #DC143C;"></div>
+                    <span><strong>소란</strong> - 50g 미만</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color" style="background-color: #8B0000;"></div>
+                    <span><strong>오파란</strong> - 파란 & 오란</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- 계란 생산 차트 -->
+        <div class="chart-container">
+            <h4 class="mb-4">📈 일자별 계란 생산수</h4>
+            <canvas id="eggProductionChart"></canvas>
+        </div>
+
+        <!-- 통계 정보 -->
+        <div class="row mb-4">
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">전체 생산</small>
+                        <div class="h5" id="totalEggs">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">왕란</small>
+                        <div class="h5" id="extraLargeEggs">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">특란</small>
+                        <div class="h5" id="largeEggs">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">대란</small>
+                        <div class="h5" id="mediumLargeEggs">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">중란</small>
+                        <div class="h5" id="mediumEggs">-</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-2">
+                <div class="card">
+                    <div class="card-body">
+                        <small class="text-muted">소란</small>
+                        <div class="h5" id="smallEggs">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 상세 데이터 테이블 -->
+        <div class="chart-container">
+            <h4 class="mb-4">📋 상세 데이터 (일자별)</h4>
+            <div class="table-responsive">
+                <table class="table table-hover" id="detailTable">
+                    <thead>
+                        <tr>
+                            <th>날짜</th>
+                            <th>왕란</th>
+                            <th>특란</th>
+                            <th>대란</th>
+                            <th>중란</th>
+                            <th>소란</th>
+                            <th>오파란</th>
+                            <th>전체</th>
+                        </tr>
+                    </thead>
+                    <tbody></tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let chartInstance = null;
+        let allData = [];
+        let currentChartType = 'bar';
+
+        // Chart.js 기본 설정
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+        // 계란 생산 데이터 로드
+        async function loadEggProduction() {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/egg-production`);
+                const data = await response.json();
+
+                console.log('Egg production data:', data);
+
+                if (data.total_records === 0) {
+                    document.getElementById('eggProductionChart').style.display = 'none';
+                    document.getElementById('detailTable').innerHTML = `
+                        <tbody><tr><td colspan="8" class="text-center text-muted">데이터가 없습니다</td></tr></tbody>
+                    `;
+                    return;
+                }
+
+                allData = data.data;
+
+                // 차트 렌더링
+                renderChart();
+
+                // 상세 테이블 렌더링
+                updateTable();
+
+                // 통계 업데이트
+                updateStatistics();
+
+            } catch (error) {
+                console.error('Failed to load egg production data:', error);
+                alert('데이터 로드 실패: ' + error.message);
+            }
+        }
+
+        // 차트 렌더링
+        function renderChart() {
+            const canvas = document.getElementById('eggProductionChart');
+            const ctx = canvas.getContext('2d');
+
+            // 기존 차트 파괴
+            if (chartInstance) {
+                chartInstance.destroy();
+            }
+
+            // 데이터 준비
+            const dates = allData.map(d => d.record_date);
+            const extraLarge = allData.map(d => d.extra_large_eggs);
+            const large = allData.map(d => d.large_eggs);
+            const mediumLarge = allData.map(d => d.medium_large_eggs);
+            const medium = allData.map(d => d.medium_eggs);
+            const small = allData.map(d => d.small_eggs);
+            const other = allData.map(d => d.other_eggs);
+
+            // 차트 타입에 따른 설정
+            if (currentChartType === 'bar') {
+                chartInstance = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: '왕란',
+                                data: extraLarge,
+                                backgroundColor: '#FFD700',
+                                borderColor: '#FFD700',
+                                borderWidth: 0
+                            },
+                            {
+                                label: '특란',
+                                data: large,
+                                backgroundColor: '#FFA500',
+                                borderColor: '#FFA500',
+                                borderWidth: 0
+                            },
+                            {
+                                label: '대란',
+                                data: mediumLarge,
+                                backgroundColor: '#FF8C00',
+                                borderColor: '#FF8C00',
+                                borderWidth: 0
+                            },
+                            {
+                                label: '중란',
+                                data: medium,
+                                backgroundColor: '#FF6347',
+                                borderColor: '#FF6347',
+                                borderWidth: 0
+                            },
+                            {
+                                label: '소란',
+                                data: small,
+                                backgroundColor: '#DC143C',
+                                borderColor: '#DC143C',
+                                borderWidth: 0
+                            },
+                            {
+                                label: '오파란',
+                                data: other,
+                                backgroundColor: '#8B0000',
+                                borderColor: '#8B0000',
+                                borderWidth: 0
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            },
+                            title: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                stacked: true,
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 0
+                                }
+                            },
+                            y: {
+                                stacked: true,
+                                title: {
+                                    display: true,
+                                    text: '계란 수 (개)'
+                                }
+                            }
+                        }
+                    }
+                });
+            } else if (currentChartType === 'line') {
+                chartInstance = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: dates,
+                        datasets: [
+                            {
+                                label: '왕란',
+                                data: extraLarge,
+                                borderColor: '#FFD700',
+                                backgroundColor: 'rgba(255, 215, 0, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: '특란',
+                                data: large,
+                                borderColor: '#FFA500',
+                                backgroundColor: 'rgba(255, 165, 0, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: '대란',
+                                data: mediumLarge,
+                                borderColor: '#FF8C00',
+                                backgroundColor: 'rgba(255, 140, 0, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: '중란',
+                                data: medium,
+                                borderColor: '#FF6347',
+                                backgroundColor: 'rgba(255, 99, 71, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: '소란',
+                                data: small,
+                                borderColor: '#DC143C',
+                                backgroundColor: 'rgba(220, 20, 60, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            },
+                            {
+                                label: '오파란',
+                                data: other,
+                                borderColor: '#8B0000',
+                                backgroundColor: 'rgba(139, 0, 0, 0.1)',
+                                borderWidth: 2,
+                                tension: 0.3
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: true,
+                        plugins: {
+                            legend: {
+                                position: 'top'
+                            },
+                            title: {
+                                display: false
+                            }
+                        },
+                        scales: {
+                            x: {
+                                ticks: {
+                                    maxRotation: 45,
+                                    minRotation: 0
+                                }
+                            },
+                            y: {
+                                title: {
+                                    display: true,
+                                    text: '계란 수 (개)'
+                                }
+                            }
+                        }
+                    }
+                });
+            }
+        }
+
+        // 차트 타입 전환
+        function switchChartType(type) {
+            currentChartType = type;
+
+            // 버튼 활성화 상태 변경
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('active');
+            });
+            event.target.classList.add('active');
+
+            // 차트 다시 렌더링
+            renderChart();
+        }
+
+        // 상세 테이블 업데이트
+        function updateTable() {
+            const tbody = document.querySelector('#detailTable tbody');
+            tbody.innerHTML = allData.map(row => `
+                <tr>
+                    <td>${row.record_date}</td>
+                    <td>${row.extra_large_eggs.toLocaleString()}</td>
+                    <td>${row.large_eggs.toLocaleString()}</td>
+                    <td>${row.medium_large_eggs.toLocaleString()}</td>
+                    <td>${row.medium_eggs.toLocaleString()}</td>
+                    <td>${row.small_eggs.toLocaleString()}</td>
+                    <td>${row.other_eggs.toLocaleString()}</td>
+                    <td><strong>${row.total_eggs.toLocaleString()}</strong></td>
+                </tr>
+            `).join('');
+        }
+
+        // 통계 업데이트
+        function updateStatistics() {
+            if (allData.length === 0) return;
+
+            // 최근 데이터
+            const latestData = allData[allData.length - 1];
+
+            document.getElementById('totalEggs').textContent = latestData.total_eggs.toLocaleString();
+            document.getElementById('extraLargeEggs').textContent = latestData.extra_large_eggs.toLocaleString();
+            document.getElementById('largeEggs').textContent = latestData.large_eggs.toLocaleString();
+            document.getElementById('mediumLargeEggs').textContent = latestData.medium_large_eggs.toLocaleString();
+            document.getElementById('mediumEggs').textContent = latestData.medium_eggs.toLocaleString();
+            document.getElementById('smallEggs').textContent = latestData.small_eggs.toLocaleString();
+        }
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', () => {
+            loadEggProduction();
+        });
+    </script>
+</body>
+</html>
