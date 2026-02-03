@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>계군 상세 분석 - 가농바이오 양계 대시보드</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        body {
+            background-color: #f5f5f5;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .dashboard-header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 2rem 0;
+            margin-bottom: 2rem;
+        }
+        .nav-pills .nav-link {
+            color: white;
+            margin: 0 0.5rem;
+        }
+        .nav-pills .nav-link.active {
+            background-color: rgba(255, 255, 255, 0.3);
+        }
+        .control-panel {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            background: white;
+            border-radius: 10px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-group {
+            background: white;
+            border-radius: 10px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .metric-label {
+            font-size: 0.9rem;
+            color: #6b7280;
+            margin-bottom: 0.25rem;
+        }
+        .metric-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .flock-selector {
+            display: inline-block;
+            padding: 0.5rem 1rem;
+            margin: 0.25rem;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+            background-color: #e2e8f0;
+            color: #4a5568;
+            border: none;
+            font-weight: 500;
+        }
+        .flock-selector:hover {
+            background-color: #cbd5e0;
+        }
+        .flock-selector.selected {
+            background-color: #667eea;
+            color: white;
+        }
+        .chart-title {
+            color: #333;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard-header">
+        <div class="container">
+            <h1 class="display-4">🐔 가농바이오 양계 대시보드</h1>
+            <ul class="nav nav-pills mt-3">
+                <li class="nav-item">
+                    <a class="nav-link" href="/">대시보드</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/compare.html">동일 일령별 비교</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/egg-production.html">계란 생산</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/trends.html">추이 그래프</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/search.html">데이터 검색</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link active" href="/flock-detail.html">계군 상세 분석</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/weekly-laying-rate.html">주간 산란율</a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" href="/predictions.html">예측 분석</a>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- 계군 선택 -->
+        <div class="control-panel">
+            <h4 class="mb-3">📂 계군 선택</h4>
+            <div id="flockList" class="d-flex flex-wrap">
+                <div class="text-center w-100">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 핵심 통계 -->
+        <div id="summaryContainer" style="display: none;">
+            <div class="row mb-4">
+                <div class="col-md-4">
+                    <div class="metric-group">
+                        <div class="metric-label">현재 일령</div>
+                        <div class="metric-value" id="currentAge">-</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-group">
+                        <div class="metric-label">현재 산란율</div>
+                        <div class="metric-value" id="currentLayingRate">-</div>
+                    </div>
+                </div>
+                <div class="col-md-4">
+                    <div class="metric-group">
+                        <div class="metric-label">누적 폐사율</div>
+                        <div class="metric-value" id="totalMortalityRate">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- 산란율, 폐사율, 파란율 (1개 차트) -->
+        <div class="chart-container" id="chartContainer1" style="display: none;">
+            <h4 class="chart-title">📈 산란 성능 지표</h4>
+            <canvas id="layingPerformanceChart"></canvas>
+        </div>
+
+        <!-- 현재 수수, 사료섭취량, 증체량 (1개 차트) -->
+        <div class="chart-container" id="chartContainer2" style="display: none;">
+            <h4 class="chart-title">🐥 개체 관리 지표</h4>
+            <canvas id="birdManagementChart"></canvas>
+        </div>
+
+        <!-- 음수량, 조명시간 (1개 차트) -->
+        <div class="chart-container" id="chartContainer3" style="display: none;">
+            <h4 class="chart-title">💧 환경 관리 지표</h4>
+            <canvas id="environmentChart"></canvas>
+        </div>
+
+        <!-- 상세 데이터 테이블 -->
+        <div class="chart-container" id="tableContainer" style="display: none;">
+            <h4 class="chart-title">📋 일자별 상세 데이터</h4>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover table-sm">
+                    <thead>
+                        <tr>
+                            <th>일령</th>
+                            <th>산란율 (%)</th>
+                            <th>폐사율 (%)</th>
+                            <th>파란율 (%)</th>
+                            <th>현재 수수</th>
+                            <th>사료섭취 (g)</th>
+                            <th>체중 (g)</th>
+                            <th>음수량 (ml)</th>
+                            <th>조명 (h)</th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- 안내 메시지 -->
+        <div id="emptyMessage" class="alert alert-info">
+            <strong>💡 사용 방법:</strong>
+            <p class="mb-0 mt-2">위에서 계군을 선택하면 해당 계군의 9개 지표를 시각화합니다. 차트는 다중축으로 구성되어 있으므로 단위가 다른 지표들을 함께 비교할 수 있습니다.</p>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        const API_BASE = window.location.origin;
+        let allFlocks = [];
+        let selectedFlockId = null;
+        let charts = {};
+
+        // Chart.js 기본 설정
+        Chart.defaults.font.family = "'Segoe UI', Tahoma, Geneva, Verdana, sans-serif";
+
+        // 계군 목록 로드
+        async function loadFlocks() {
+            try {
+                const response = await fetch(`${API_BASE}/api/files`);
+                const data = await response.json();
+                allFlocks = data.files;
+
+                // 동별, 차수별로 정렬
+                allFlocks.sort((a, b) => {
+                    const houseA = parseInt(a.layer_house.replace('동', ''));
+                    const houseB = parseInt(b.layer_house.replace('동', ''));
+                    if (houseA !== houseB) return houseA - houseB;
+
+                    const batchA = parseInt(a.layer_batch.replace('차', ''));
+                    const batchB = parseInt(b.layer_batch.replace('차', ''));
+                    return batchB - batchA;
+                });
+
+                // 버튼 렌더링
+                const flockList = document.getElementById('flockList');
+                flockList.innerHTML = allFlocks.map((flock) => `
+                    <button class="flock-selector" data-flock-id="${flock.id}" onclick="selectFlock(${flock.id}, event)">
+                        ${flock.layer_house} ${flock.layer_batch}
+                    </button>
+                `).join('');
+
+                // 첫 번째 계군 자동 선택
+                if (allFlocks.length > 0) {
+                    selectFlock(allFlocks[0].id);
+                }
+
+            } catch (error) {
+                console.error('Failed to load flocks:', error);
+            }
+        }
+
+        // 계군 선택
+        async function selectFlock(flockId, event) {
+            if (event) {
+                event.preventDefault();
+            }
+
+            selectedFlockId = flockId;
+
+            // UI 업데이트
+            document.querySelectorAll('.flock-selector').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            document.querySelector(`[data-flock-id="${flockId}"]`).classList.add('selected');
+
+            // 데이터 로드
+            await loadFlockData(flockId);
+        }
+
+        // 계군 상세 데이터 로드
+        async function loadFlockData(flockId) {
+            try {
+                const response = await fetch(`${API_BASE}/api/layer/flock-detail?file_id=${flockId}`);
+                const data = await response.json();
+
+                if (data.error) {
+                    console.error(data.error);
+                    return;
+                }
+
+                // 차트 생성
+                createCharts(data.data);
+
+                // 테이블 업데이트
+                updateTable(data.data);
+
+                // 요약 통계 업데이트
+                updateSummary(data.data);
+
+                // UI 표시
+                document.getElementById('summaryContainer').style.display = 'block';
+                document.getElementById('chartContainer1').style.display = 'block';
+                document.getElementById('chartContainer2').style.display = 'block';
+                document.getElementById('chartContainer3').style.display = 'block';
+                document.getElementById('tableContainer').style.display = 'block';
+                document.getElementById('emptyMessage').style.display = 'none';
+
+            } catch (error) {
+                console.error('Failed to load flock data:', error);
+            }
+        }
+
+        // 차트 생성
+        function createCharts(data) {
+            // 기존 차트 제거
+            Object.values(charts).forEach(chart => {
+                if (chart) chart.destroy();
+            });
+            charts = {};
+
+            // 1. 산란 성능 지표 (산란율, 폐사율, 파란율)
+            createLayingPerformanceChart(data);
+
+            // 2. 개체 관리 지표 (현재 수수, 사료섭취량, 체중)
+            createBirdManagementChart(data);
+
+            // 3. 환경 관리 지표 (음수량, 조명시간)
+            createEnvironmentChart(data);
+        }
+
+        // Chart 1: 산란율, 폐사율, 파란율
+        function createLayingPerformanceChart(data) {
+            const ctx = document.getElementById('layingPerformanceChart');
+
+            charts['layingPerformance'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => `${d.age_day}일`),
+                    datasets: [
+                        {
+                            label: '산란율 (%)',
+                            data: data.map(d => d.laying_rate),
+                            borderColor: '#667eea',
+                            backgroundColor: 'rgba(102, 126, 234, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '폐사율 (%)',
+                            data: data.map(d => d.mortality_rate),
+                            borderColor: '#f56565',
+                            backgroundColor: 'rgba(245, 101, 101, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '파란율 (%)',
+                            data: data.map(d => d.broken_egg_rate),
+                            borderColor: '#ed8936',
+                            backgroundColor: 'rgba(237, 137, 54, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: '비율 (%)' },
+                            beginAtZero: true,
+                            max: 100
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + '%';
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Chart 2: 현재 수수, 사료섭취량, 체중
+        function createBirdManagementChart(data) {
+            const ctx = document.getElementById('birdManagementChart');
+
+            charts['birdManagement'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => `${d.age_day}일`),
+                    datasets: [
+                        {
+                            label: '현재 수수 (마리)',
+                            data: data.map(d => d.current_count),
+                            borderColor: '#48bb78',
+                            backgroundColor: 'rgba(72, 187, 120, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '사료섭취량 (g)',
+                            data: data.map(d => d.feed_per_bird),
+                            borderColor: '#9f7aea',
+                            backgroundColor: 'rgba(159, 122, 234, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        },
+                        {
+                            label: '체중 (g)',
+                            data: data.map(d => d.weight),
+                            borderColor: '#38b2ac',
+                            backgroundColor: 'rgba(56, 178, 172, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: '수수 (마리)' }
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: '무게 (g)' },
+                            grid: { drawOnChartArea: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.dataset.label === '현재 수수 (마리)') {
+                                        return context.dataset.label + ': ' + Math.round(context.parsed.y) + '마리';
+                                    } else {
+                                        return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'g';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // Chart 3: 음수량, 조명시간
+        function createEnvironmentChart(data) {
+            const ctx = document.getElementById('environmentChart');
+
+            charts['environment'] = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: data.map(d => `${d.age_day}일`),
+                    datasets: [
+                        {
+                            label: '음수량 (ml)',
+                            data: data.map(d => d.water_intake),
+                            borderColor: '#4299e1',
+                            backgroundColor: 'rgba(66, 153, 225, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y'
+                        },
+                        {
+                            label: '조명시간 (시간)',
+                            data: data.map(d => d.light_duration),
+                            borderColor: '#ecc94b',
+                            backgroundColor: 'rgba(236, 201, 75, 0.05)',
+                            borderWidth: 2,
+                            pointRadius: 2,
+                            pointHoverRadius: 4,
+                            tension: 0.4,
+                            yAxisID: 'y1'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: true,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        y: {
+                            type: 'linear',
+                            display: true,
+                            position: 'left',
+                            title: { display: true, text: '음수량 (ml)' },
+                            beginAtZero: true
+                        },
+                        y1: {
+                            type: 'linear',
+                            display: true,
+                            position: 'right',
+                            title: { display: true, text: '조명시간 (시간)' },
+                            min: 0,
+                            max: 24,
+                            grid: { drawOnChartArea: false }
+                        }
+                    },
+                    plugins: {
+                        legend: { display: true, position: 'top' },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    if (context.dataset.label === '음수량 (ml)') {
+                                        return context.dataset.label + ': ' + context.parsed.y.toFixed(2) + 'ml';
+                                    } else {
+                                        return context.dataset.label + ': ' + context.parsed.y.toFixed(1) + '시간';
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // 테이블 업데이트
+        function updateTable(data) {
+            const tableBody = document.getElementById('dataTableBody');
+
+            tableBody.innerHTML = data.map(item => `
+                <tr>
+                    <td>${item.age_day}일</td>
+                    <td>${(item.laying_rate || 0).toFixed(2)}%</td>
+                    <td>${(item.mortality_rate || 0).toFixed(2)}%</td>
+                    <td>${(item.broken_egg_rate || 0).toFixed(2)}%</td>
+                    <td>${(item.current_count || 0).toLocaleString()}마리</td>
+                    <td>${(item.feed_per_bird || 0).toFixed(2)}g</td>
+                    <td>${(item.weight || 0).toFixed(2)}g</td>
+                    <td>${(item.water_intake || 0).toFixed(2)}ml</td>
+                    <td>${(item.light_duration || 0).toFixed(1)}시간</td>
+                </tr>
+            `).join('');
+        }
+
+        // 요약 통계 업데이트
+        function updateSummary(data) {
+            if (data.length === 0) return;
+
+            const lastRecord = data[data.length - 1];
+            const lastRecord2 = data.length > 1 ? data[data.length - 2] : data[0];
+
+            // 누적 폐사율 계산
+            let totalMortality = 0;
+            let prevCount = null;
+            for (let i = 0; i < data.length; i++) {
+                if (data[i].current_count && prevCount) {
+                    const loss = prevCount - data[i].current_count;
+                    if (loss > 0) totalMortality += loss;
+                }
+                prevCount = data[i].current_count;
+            }
+
+            const cumulativeMortalityRate = prevCount ? ((totalMortality / data[0].current_count) * 100) : 0;
+
+            document.getElementById('currentAge').textContent = lastRecord.age_day + '일';
+            document.getElementById('currentLayingRate').textContent = (lastRecord.laying_rate || 0).toFixed(2) + '%';
+            document.getElementById('totalMortalityRate').textContent = cumulativeMortalityRate.toFixed(2) + '%';
+        }
+
+        // 초기 로드
+        window.addEventListener('DOMContentLoaded', () => {
+            loadFlocks();
+        });
+    </script>
+</body>
+</html>

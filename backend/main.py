@@ -1055,6 +1055,80 @@ def get_egg_production(db: Session = Depends(get_db)):
     }
 
 
+@app.get("/api/layer/flock-detail")
+def get_flock_detail(file_id: int, db: Session = Depends(get_db)):
+    """
+    계군별 전체 그래프 - 9개 지표의 일자별 데이터
+
+    Returns:
+        {
+            "file_info": {"house": "1동", "batch": "9차", ...},
+            "data": [
+                {
+                    "age_day": 350,
+                    "laying_rate": 85.5,
+                    "mortality_rate": 0.1,
+                    "broken_egg_rate": 2.3,
+                    "current_count": 8000,
+                    "feed_per_bird": 125.5,
+                    "weight": 1850,
+                    "water_intake": 250,
+                    "light_duration": 16
+                }
+            ]
+        }
+    """
+    from sqlalchemy import func
+
+    # 파일 정보 조회
+    file_info = db.query(FileMetadata).filter_by(id=file_id).first()
+    if not file_info:
+        return {"error": "File not found"}
+
+    # 모든 데이터 조회
+    records = db.query(
+        LayerDaily.age_day,
+        LayerDaily.laying_rate,
+        LayerDaily.mortality_rate,
+        LayerDaily.broken_egg_rate,
+        LayerDaily.current_count,
+        LayerDaily.feed_per_bird,
+        LayerDaily.weight,
+        LayerDaily.water_intake,
+        LayerDaily.light_duration
+    ).filter(
+        LayerDaily.file_id == file_id,
+        LayerDaily.laying_rate.isnot(None)
+    ).order_by(
+        LayerDaily.age_day
+    ).all()
+
+    result = [
+        {
+            "age_day": record.age_day,
+            "laying_rate": float(round(record.laying_rate, 2)) if record.laying_rate else None,
+            "mortality_rate": float(round(record.mortality_rate, 2)) if record.mortality_rate else None,
+            "broken_egg_rate": float(round(record.broken_egg_rate, 2)) if record.broken_egg_rate else None,
+            "current_count": int(record.current_count) if record.current_count else None,
+            "feed_per_bird": float(round(record.feed_per_bird, 2)) if record.feed_per_bird else None,
+            "weight": float(round(record.weight, 2)) if record.weight else None,
+            "water_intake": float(round(record.water_intake, 2)) if record.water_intake else None,
+            "light_duration": float(record.light_duration) if record.light_duration else None
+        }
+        for record in records
+    ]
+
+    return {
+        "file_info": {
+            "id": file_info.id,
+            "house": file_info.layer_house,
+            "batch": file_info.layer_batch
+        },
+        "total_records": len(result),
+        "data": result
+    }
+
+
 # 정적 파일 서빙 (마지막에 추가 - 다른 라우트가 우선)
 app.mount("/", StaticFiles(directory=FRONTEND_DIR, html=True), name="frontend")
 
