@@ -453,10 +453,10 @@ async def upload_excel(file: UploadFile = File(...)):
     """
     try:
         # 파일 확장자 확인
-        if not file.filename.endswith(('.xlsx', '.xls')):
+        if not file.filename.endswith(('.xlsx', '.xls', '.xlsm')):
             return {
                 "status": "error",
-                "message": "엑셀 파일만 업로드 가능합니다 (.xlsx, .xls)",
+                "message": "엑셀 파일만 업로드 가능합니다 (.xlsx, .xls, .xlsm)",
                 "timestamp": datetime.now().isoformat()
             }
 

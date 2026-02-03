@@ -253,7 +253,7 @@
         <span id="uploadIcon">📤</span>
         <span id="uploadText"> 엑셀 업로드</span>
     </button>
-    <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;" onchange="uploadExcel(this)">
+    <input type="file" id="excelFileInput" accept=".xlsx,.xls,.xlsm" style="display: none;" onchange="uploadExcel(this)">
 
     <!-- 토스트 알림 -->
     <div class="toast-container">
@@ -613,8 +613,8 @@
             const text = document.getElementById('uploadText');
 
             // 파일 확장자 확인
-            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
-                alert('엑셀 파일만 업로드 가능합니다 (.xlsx, .xls)');
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls') && !file.name.endsWith('.xlsm')) {
+                alert('엑셀 파일만 업로드 가능합니다 (.xlsx, .xls, .xlsm)');
                 input.value = '';
                 return;
             }
