@@ -2,7 +2,7 @@
 FastAPI 메인 애플리케이션
 """
 
-from fastapi import FastAPI, Depends
+from fastapi import FastAPI, Depends, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy.orm import Session
@@ -14,6 +14,8 @@ from typing import List, Dict
 from datetime import datetime
 import os
 import glob
+import shutil
+from pathlib import Path
 
 # FastAPI 앱 생성
 app = FastAPI(
@@ -437,6 +439,106 @@ def reload_data(force: bool = False):
         return {
             "status": "error",
             "message": f"데이터 새로고침 실패: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }
+
+
+@app.post("/api/admin/upload-excel")
+async def upload_excel(file: UploadFile = File(...)):
+    """
+    엑셀 파일 업로드 및 데이터베이스 갱신
+
+    Args:
+        file: 업로드할 엑셀 파일
+    """
+    try:
+        # 파일 확장자 확인
+        if not file.filename.endswith(('.xlsx', '.xls')):
+            return {
+                "status": "error",
+                "message": "엑셀 파일만 업로드 가능합니다 (.xlsx, .xls)",
+                "timestamp": datetime.now().isoformat()
+            }
+
+        # 업로드 디렉토리 생성
+        upload_dir = Path(EXCEL_DIR)
+        upload_dir.mkdir(parents=True, exist_ok=True)
+
+        # 파일 저장
+        file_path = upload_dir / file.filename
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        # 파일 파싱 및 DB 업데이트
+        from services.excel_parser import ExcelParser
+        parser = ExcelParser()
+
+        # DB 세션 생성
+        db = next(get_db())
+
+        try:
+            # 파일 파싱
+            result = parser.parse_file(str(file_path))
+
+            if result["status"] == "success":
+                # 파일 메타데이터 저장
+                file_info = result["file_info"]
+
+                # 기존 동일 파일 데이터 삭제 (동/차수 기준)
+                db.query(FileMetadata).filter(
+                    FileMetadata.layer_house == file_info.layer_house,
+                    FileMetadata.layer_batch == file_info.layer_batch
+                ).delete()
+
+                db.query(LayerDaily).filter(
+                    LayerDaily.file_id == None  # 임시로 None 체크
+                ).delete()
+
+                # 새 데이터 저장
+                db.add(file_info)
+                db.flush()
+
+                # 산란계 데이터 저장
+                for record in result["layer_records"]:
+                    record.file_id = file_info.id
+                    db.add(record)
+
+                # 육성계 데이터 저장
+                for record in result["pullet_records"]:
+                    record.file_id = file_info.id
+                    db.add(record)
+
+                db.commit()
+
+                return {
+                    "status": "success",
+                    "message": f"파일 업로드 및 데이터 갱신 완료: {file.filename}",
+                    "file_info": {
+                        "filename": file.filename,
+                        "house": file_info.layer_house,
+                        "batch": file_info.layer_batch,
+                        "layer_records": len(result["layer_records"]),
+                        "pullet_records": len(result["pullet_records"])
+                    },
+                    "timestamp": datetime.now().isoformat()
+                }
+            else:
+                return {
+                    "status": "error",
+                    "message": f"파일 파싱 실패: {result.get('message', '알 수 없는 오류')}",
+                    "timestamp": datetime.now().isoformat()
+                }
+
+        except Exception as e:
+            db.rollback()
+            raise e
+        finally:
+            db.close()
+
+    except Exception as e:
+        return {
+            "status": "error",
+            "message": f"파일 업로드 실패: {str(e)}",
             "timestamp": datetime.now().isoformat()
         }
 

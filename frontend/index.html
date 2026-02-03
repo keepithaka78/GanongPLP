@@ -248,6 +248,13 @@
         <span id="refreshText"> 데이터 새로고침</span>
     </button>
 
+    <!-- 엑셀 업로드 버튼 -->
+    <button id="uploadBtn" class="btn btn-success btn-lg" style="position: fixed; bottom: 100px; right: 30px; z-index: 1000; border-radius: 50px; padding: 15px 25px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);" onclick="document.getElementById('excelFileInput').click()">
+        <span id="uploadIcon">📤</span>
+        <span id="uploadText"> 엑셀 업로드</span>
+    </button>
+    <input type="file" id="excelFileInput" accept=".xlsx,.xls" style="display: none;" onchange="uploadExcel(this)">
+
     <!-- 토스트 알림 -->
     <div class="toast-container">
         <div id="refreshToast" class="toast" role="alert" aria-live="assertive" aria-atomic="true">
@@ -591,6 +598,86 @@
                 btn.disabled = false;
                 icon.textContent = '🔄';
                 text.textContent = ' 데이터 새로고침';
+            }
+        }
+
+        // 엑셀 파일 업로드
+        async function uploadExcel(input) {
+            if (!input.files || input.files.length === 0) {
+                return;
+            }
+
+            const file = input.files[0];
+            const btn = document.getElementById('uploadBtn');
+            const icon = document.getElementById('uploadIcon');
+            const text = document.getElementById('uploadText');
+
+            // 파일 확장자 확인
+            if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+                alert('엑셀 파일만 업로드 가능합니다 (.xlsx, .xls)');
+                input.value = '';
+                return;
+            }
+
+            // 버튼 비활성화
+            btn.disabled = true;
+            icon.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            text.textContent = ' 업로드 중...';
+
+            try {
+                // FormData 생성
+                const formData = new FormData();
+                formData.append('file', file);
+
+                // API 호출
+                const response = await fetch(`${API_BASE}/api/admin/upload-excel`, {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const result = await response.json();
+
+                // 토스트 메시지
+                const toastEl = document.getElementById('refreshToast');
+                const toastBody = document.getElementById('toastMessage');
+
+                if (result.status === 'success') {
+                    toastBody.innerHTML = `
+                        <strong>✅ ${result.message}</strong><br>
+                        <small>
+                            동/차수: ${result.file_info.house}/${result.file_info.batch}<br>
+                            산란계 데이터: ${result.file_info.layer_records}개<br>
+                            육성계 데이터: ${result.file_info.pullet_records}개
+                        </small>
+                    `;
+
+                    // 데이터 다시 로드
+                    setTimeout(async () => {
+                        await checkHealth();
+                        await loadAlerts();
+                        await loadHouses();
+                    }, 1000);
+                } else {
+                    toastBody.innerHTML = `<strong>❌ ${result.message}</strong>`;
+                }
+
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+
+            } catch (error) {
+                console.error('Failed to upload file:', error);
+                const toastEl = document.getElementById('refreshToast');
+                const toastBody = document.getElementById('toastMessage');
+                toastBody.innerHTML = `<strong>❌ 업로드 실패</strong><br>${error.message}`;
+                const toast = new bootstrap.Toast(toastEl);
+                toast.show();
+            } finally {
+                // 버튼 다시 활성화
+                btn.disabled = false;
+                icon.textContent = '📤';
+                text.textContent = ' 엑셀 업로드';
+                // 파일 입력 초기화
+                input.value = '';
             }
         }
 
