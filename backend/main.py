@@ -937,6 +937,59 @@ def get_standards(age_day: int, db: Session = Depends(get_db)):
     return standards
 
 
+@app.get("/api/layer/weekly-laying-rate")
+def get_weekly_laying_rate(file_id: int, db: Session = Depends(get_db)):
+    """
+    특정 계군의 주령별 평균 산란율
+
+    Args:
+        file_id: 파일 ID
+
+    Returns:
+        주령별 평균 산란율 데이터
+    """
+    from sqlalchemy import func
+
+    # 파일 정보 조회
+    file_info = db.query(FileMetadata).filter_by(id=file_id).first()
+    if not file_info:
+        return {"error": "File not found"}
+
+    # 주령별 산란율 평균 계산
+    records = db.query(
+        LayerDaily.week_age,
+        func.avg(LayerDaily.laying_rate).label('avg_laying_rate'),
+        func.count(LayerDaily.id).label('record_count')
+    ).filter(
+        LayerDaily.file_id == file_id,
+        LayerDaily.laying_rate.isnot(None)
+    ).group_by(
+        LayerDaily.week_age
+    ).order_by(
+        LayerDaily.week_age
+    ).all()
+
+    result = [
+        {
+            "week_age": int(record.week_age) if record.week_age else 0,
+            "avg_laying_rate": float(round(record.avg_laying_rate, 2)) if record.avg_laying_rate else 0,
+            "record_count": record.record_count
+        }
+        for record in records
+    ]
+
+    return {
+        "file_info": {
+            "id": file_info.id,
+            "house": file_info.layer_house,
+            "batch": file_info.layer_batch,
+            "filename": file_info.filename
+        },
+        "total_weeks": len(result),
+        "data": result
+    }
+
+
 @app.get("/api/layer/egg-production")
 def get_egg_production(db: Session = Depends(get_db)):
     """

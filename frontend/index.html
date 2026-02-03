@@ -124,6 +124,9 @@
                     <a class="nav-link" href="/search.html" style="color: white;">데이터 검색</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="/weekly-laying-rate.html" style="color: white;">주간 산란율</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="/predictions.html" style="color: white;">예측 분석</a>
                 </li>
             </ul>
@@ -511,7 +514,7 @@
                         <div class="row align-items-center">
                             <div class="col-md-2">
                                 <h5 class="mb-0">${house.house} ${house.batch}</h5>
-                                <small class="text-muted">일령 ${house.age_day}일 (${Math.floor(house.age_day / 7)}주령)</small>
+                                <small class="text-muted">일령 ${house.age_day}일 (${house.week_age ? house.week_age : Math.floor(house.age_day / 7)}주령)</small>
                             </div>
                             <div class="col-md-2">
                                 <div class="stat-label">산란율</div>

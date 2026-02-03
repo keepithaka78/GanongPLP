@@ -78,6 +78,9 @@
                     <a class="nav-link" href="/search.html">데이터 검색</a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" href="/weekly-laying-rate.html">주간 산란율</a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" href="/predictions.html">예측 분석</a>
                 </li>
             </ul>
@@ -217,7 +220,10 @@
                         label: label,
                         data: data.data.map(d => ({ x: d.age_day, y: d.laying_rate })),
                         borderColor: color,
-                        backgroundColor: color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         tension: 0.4
                     });
 
@@ -225,7 +231,10 @@
                         label: label,
                         data: data.data.map(d => ({ x: d.age_day, y: d.mortality_rate })),
                         borderColor: color,
-                        backgroundColor: color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         tension: 0.4
                     });
 
@@ -233,7 +242,10 @@
                         label: label,
                         data: data.data.map(d => ({ x: d.age_day, y: d.broken_egg_rate })),
                         borderColor: color,
-                        backgroundColor: color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         tension: 0.4
                     });
 
@@ -241,7 +253,10 @@
                         label: label,
                         data: data.data.map(d => ({ x: d.age_day, y: d.feed_per_bird || 0 })),
                         borderColor: color,
-                        backgroundColor: color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         tension: 0.4
                     });
 
@@ -249,7 +264,10 @@
                         label: label,
                         data: data.data.map(d => ({ x: d.age_day, y: d.current_count || 0 })),
                         borderColor: color,
-                        backgroundColor: color,
+                        backgroundColor: 'transparent',
+                        borderWidth: 1,
+                        pointRadius: 2,
+                        pointHoverRadius: 4,
                         tension: 0.4
                     });
                 }
