@@ -470,70 +470,48 @@ async def upload_excel(file: UploadFile = File(...)):
             shutil.copyfileobj(file.file, buffer)
 
         # 파일 파싱 및 DB 업데이트
+        from services.data_loader import DataLoader
         from services.excel_parser import ExcelParser
-        parser = ExcelParser()
 
         # DB 세션 생성
         db = next(get_db())
 
         try:
-            # 파일 파싱
-            result = parser.parse_file(str(file_path))
+            # DataLoader를 사용하여 파일 로드
+            loader = DataLoader(db_session=db)
+            success = loader.load_file(str(file_path))
 
-            if result["status"] == "success":
-                # 파일 메타데이터 저장
-                file_info = result["file_info"]
-
-                # 기존 동일 파일 데이터 삭제 (동/차수 기준)
-                db.query(FileMetadata).filter(
-                    FileMetadata.layer_house == file_info.layer_house,
-                    FileMetadata.layer_batch == file_info.layer_batch
-                ).delete()
-
-                db.query(LayerDaily).filter(
-                    LayerDaily.file_id == None  # 임시로 None 체크
-                ).delete()
-
-                # 새 데이터 저장
-                db.add(file_info)
-                db.flush()
-
-                # 산란계 데이터 저장
-                for record in result["layer_records"]:
-                    record.file_id = file_info.id
-                    db.add(record)
-
-                # 육성계 데이터 저장
-                for record in result["pullet_records"]:
-                    record.file_id = file_info.id
-                    db.add(record)
-
-                db.commit()
+            if success:
+                # 파싱된 정보 가져오기
+                parser = ExcelParser(str(file_path))
+                metadata = parser.metadata
+                data = parser.parse_all()
 
                 return {
                     "status": "success",
                     "message": f"파일 업로드 및 데이터 갱신 완료: {file.filename}",
                     "file_info": {
                         "filename": file.filename,
-                        "house": file_info.layer_house,
-                        "batch": file_info.layer_batch,
-                        "layer_records": len(result["layer_records"]),
-                        "pullet_records": len(result["pullet_records"])
+                        "house": metadata['layer_house'],
+                        "batch": metadata['layer_batch'],
+                        "layer_records": len(data['layer_daily']),
+                        "pullet_records": len(data['pullet_daily'])
                     },
                     "timestamp": datetime.now().isoformat()
                 }
             else:
                 return {
                     "status": "error",
-                    "message": f"파일 파싱 실패: {result.get('message', '알 수 없는 오류')}",
+                    "message": f"파일 파싱 실패: 데이터 로드 중 오류 발생",
                     "timestamp": datetime.now().isoformat()
                 }
 
         except Exception as e:
-            db.rollback()
-            raise e
-        finally:
-            db.close()
+            return {
+                "status": "error",
+                "message": f"파일 처리 실패: {str(e)}",
+                "timestamp": datetime.now().isoformat()
+            }
 
     except Exception as e:
         return {
