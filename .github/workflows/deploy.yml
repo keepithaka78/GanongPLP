@@ -23,7 +23,7 @@ jobs:
         chmod 600 ~/.ssh/deploy_key.pem
 
         # SSH 호스트 키 추가
-        ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
+        ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts 2>/dev/null || true
 
         # 배포 스크립트 실행
         ssh -i ~/.ssh/deploy_key.pem "$USER@$HOST" 'bash -s' < deploy.sh
@@ -34,4 +34,4 @@ jobs:
 
     - name: Notify Failure
       if: failure()
-      run: echo "❌ 배포가 실패했습니다. 서버 상태를 확인하세요."
+      run: echo "❌ 배포가 실패했습니다. SSH 로그를 확인하세요."
