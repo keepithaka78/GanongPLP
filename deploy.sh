@@ -56,14 +56,14 @@ fi
 # 4. Python 의존성 설치
 echo ""
 echo ">> Python 의존성 설치..."
-pip install -q -r backend/requirements.txt --upgrade
+pip install -q -r backend/requirements.txt --upgrade --break-system-packages
 echo "✓ 의존성 설치 완료"
 
 # 5. 새 프로세스 시작
 echo ""
 echo ">> 새 프로세스 시작..."
 cd backend
-nohup python -m uvicorn main:app --host 0.0.0.0 --port 8000 > ../logs/app.log 2>&1 &
+nohup python3 -m uvicorn main:app --host 0.0.0.0 --port 8000 > ../logs/app.log 2>&1 &
 cd ..
 
 sleep 3
